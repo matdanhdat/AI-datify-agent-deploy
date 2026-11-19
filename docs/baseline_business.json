@@ -1,0 +1,413 @@
+{
+  "source_file": "samples/business/du-lieu-test-ban-le.csv",
+  "generated_at": "2026-11-18T20:32:04.454Z",
+  "clean_rows": 48,
+  "raw_rows": 50,
+  "dropped_rows": 2,
+  "totals": {
+    "orders": 3342,
+    "revenue": 1135530000,
+    "cogs": 603680000,
+    "profit": 531850000,
+    "gross_margin_pct": 46.84,
+    "aov": 339775.58
+  },
+  "by_channel": [
+    {
+      "channel": "Website",
+      "revenue": 454165000,
+      "orders": 1313,
+      "cogs": 237618000,
+      "profit": 216547000,
+      "margin_pct": 47.68,
+      "revenue_share_pct": 40
+    },
+    {
+      "channel": "Sàn thương mại điện tử",
+      "revenue": 367740000,
+      "orders": 1110,
+      "cogs": 202440000,
+      "profit": 165300000,
+      "margin_pct": 44.95,
+      "revenue_share_pct": 32.38
+    },
+    {
+      "channel": "Cửa hàng",
+      "revenue": 313625000,
+      "orders": 919,
+      "cogs": 163622000,
+      "profit": 150003000,
+      "margin_pct": 47.83,
+      "revenue_share_pct": 27.62
+    }
+  ],
+  "by_product": [
+    {
+      "product": "Sơ mi",
+      "revenue": 373257000,
+      "orders": 903,
+      "cogs": 200466000,
+      "profit": 172791000,
+      "margin_pct": 46.29,
+      "revenue_share_pct": 32.87
+    },
+    {
+      "product": "Quần jeans",
+      "revenue": 363893000,
+      "orders": 647,
+      "cogs": 205746000,
+      "profit": 158147000,
+      "margin_pct": 43.46,
+      "revenue_share_pct": 32.05
+    },
+    {
+      "product": "Áo thun",
+      "revenue": 258092000,
+      "orders": 1078,
+      "cogs": 128282000,
+      "profit": 129810000,
+      "margin_pct": 50.3,
+      "revenue_share_pct": 22.73
+    },
+    {
+      "product": "Túi tote",
+      "revenue": 94768000,
+      "orders": 634,
+      "cogs": 43746000,
+      "profit": 51022000,
+      "margin_pct": 53.84,
+      "revenue_share_pct": 8.35
+    },
+    {
+      "product": "Không xác định",
+      "revenue": 45520000,
+      "orders": 80,
+      "cogs": 25440000,
+      "profit": 20080000,
+      "margin_pct": 44.11,
+      "revenue_share_pct": 4.01
+    }
+  ],
+  "by_region": [
+    {
+      "region": "Miền Trung",
+      "revenue": 380718000,
+      "orders": 1114,
+      "cogs": 202208000,
+      "profit": 178510000,
+      "revenue_share_pct": 33.53
+    },
+    {
+      "region": "Miền Bắc",
+      "revenue": 372836000,
+      "orders": 1073,
+      "cogs": 198061000,
+      "profit": 174775000,
+      "revenue_share_pct": 32.83
+    },
+    {
+      "region": "Miền Nam",
+      "revenue": 355558000,
+      "orders": 1019,
+      "cogs": 189777000,
+      "profit": 165781000,
+      "revenue_share_pct": 31.31
+    },
+    {
+      "region": "Không xác định",
+      "revenue": 26418000,
+      "orders": 136,
+      "cogs": 13634000,
+      "profit": 12784000,
+      "revenue_share_pct": 2.33
+    }
+  ],
+  "by_month": [
+    {
+      "month": "2026-07",
+      "revenue": 261246000,
+      "orders": 761,
+      "cogs": 139077000,
+      "profit": 122169000,
+      "revenue_share_pct": 23.01,
+      "mom_delta": null,
+      "mom_pct": null
+    },
+    {
+      "month": "2026-08",
+      "revenue": 296557000,
+      "orders": 875,
+      "cogs": 157537000,
+      "profit": 139020000,
+      "revenue_share_pct": 26.12,
+      "mom_delta": 35311000,
+      "mom_pct": 13.52
+    },
+    {
+      "month": "2026-09",
+      "revenue": 243511000,
+      "orders": 712,
+      "cogs": 129639000,
+      "profit": 113872000,
+      "revenue_share_pct": 21.44,
+      "mom_delta": -53046000,
+      "mom_pct": -17.89
+    },
+    {
+      "month": "2026-10",
+      "revenue": 334216000,
+      "orders": 994,
+      "cogs": 177427000,
+      "profit": 156789000,
+      "revenue_share_pct": 29.43,
+      "mom_delta": 90705000,
+      "mom_pct": 37.25
+    }
+  ],
+  "channel_product_cross": {
+    "lowest_margin": {
+      "pair": "Sàn thương mại điện tử × Quần jeans",
+      "channel": "Sàn thương mại điện tử",
+      "product": "Quần jeans",
+      "revenue": 138000000,
+      "cogs": 79500000,
+      "profit": 58500000,
+      "margin_pct": 42.39
+    },
+    "highest_margin": {
+      "pair": "Cửa hàng × Túi tote",
+      "channel": "Cửa hàng",
+      "product": "Túi tote",
+      "revenue": 26040000,
+      "cogs": 11592000,
+      "profit": 14448000,
+      "margin_pct": 55.48
+    },
+    "all_pairs": [
+      {
+        "pair": "Sàn thương mại điện tử × Quần jeans",
+        "channel": "Sàn thương mại điện tử",
+        "product": "Quần jeans",
+        "revenue": 138000000,
+        "cogs": 79500000,
+        "profit": 58500000,
+        "margin_pct": 42.39
+      },
+      {
+        "pair": "Website × Quần jeans",
+        "channel": "Website",
+        "product": "Quần jeans",
+        "revenue": 120059000,
+        "cogs": 67098000,
+        "profit": 52961000,
+        "margin_pct": 44.11
+      },
+      {
+        "pair": "Cửa hàng × Quần jeans",
+        "channel": "Cửa hàng",
+        "product": "Quần jeans",
+        "revenue": 105834000,
+        "cogs": 59148000,
+        "profit": 46686000,
+        "margin_pct": 44.11
+      },
+      {
+        "pair": "Website × Không xác định",
+        "channel": "Website",
+        "product": "Không xác định",
+        "revenue": 45520000,
+        "cogs": 25440000,
+        "profit": 20080000,
+        "margin_pct": 44.11
+      },
+      {
+        "pair": "Sàn thương mại điện tử × Sơ mi",
+        "channel": "Sàn thương mại điện tử",
+        "product": "Sơ mi",
+        "revenue": 120600000,
+        "cogs": 66600000,
+        "profit": 54000000,
+        "margin_pct": 44.78
+      },
+      {
+        "pair": "Website × Sơ mi",
+        "channel": "Website",
+        "product": "Sơ mi",
+        "revenue": 148326000,
+        "cogs": 78588000,
+        "profit": 69738000,
+        "margin_pct": 47.02
+      },
+      {
+        "pair": "Cửa hàng × Sơ mi",
+        "channel": "Cửa hàng",
+        "product": "Sơ mi",
+        "revenue": 104331000,
+        "cogs": 55278000,
+        "profit": 49053000,
+        "margin_pct": 47.02
+      },
+      {
+        "pair": "Sàn thương mại điện tử × Áo thun",
+        "channel": "Sàn thương mại điện tử",
+        "product": "Áo thun",
+        "revenue": 80712000,
+        "cogs": 42126000,
+        "profit": 38586000,
+        "margin_pct": 47.81
+      },
+      {
+        "pair": "Sàn thương mại điện tử × Túi tote",
+        "channel": "Sàn thương mại điện tử",
+        "product": "Túi tote",
+        "revenue": 28428000,
+        "cogs": 14214000,
+        "profit": 14214000,
+        "margin_pct": 50
+      },
+      {
+        "pair": "Website × Áo thun",
+        "channel": "Website",
+        "product": "Áo thun",
+        "revenue": 99960000,
+        "cogs": 48552000,
+        "profit": 51408000,
+        "margin_pct": 51.43
+      },
+      {
+        "pair": "Cửa hàng × Áo thun",
+        "channel": "Cửa hàng",
+        "product": "Áo thun",
+        "revenue": 77420000,
+        "cogs": 37604000,
+        "profit": 39816000,
+        "margin_pct": 51.43
+      },
+      {
+        "pair": "Website × Túi tote",
+        "channel": "Website",
+        "product": "Túi tote",
+        "revenue": 40300000,
+        "cogs": 17940000,
+        "profit": 22360000,
+        "margin_pct": 55.48
+      },
+      {
+        "pair": "Cửa hàng × Túi tote",
+        "channel": "Cửa hàng",
+        "product": "Túi tote",
+        "revenue": 26040000,
+        "cogs": 11592000,
+        "profit": 14448000,
+        "margin_pct": 55.48
+      }
+    ]
+  },
+  "facts_table": {
+    "facts_count": 20,
+    "byte_size": 2931,
+    "hash": "50e510a26173599fe282ac9961fa4d55c819f64797da44be8ccb8d8b7616856e",
+    "facts_summary": [
+      {
+        "id": "F1",
+        "label": "Tổng số dòng dữ liệu sạch và kỳ khảo sát",
+        "display": "48 dòng (2026-07 đến 2026-10 (4 tháng))"
+      },
+      {
+        "id": "F2",
+        "label": "Tổng doanh thu",
+        "display": "1.135.530.000 VND"
+      },
+      {
+        "id": "F3",
+        "label": "Tổng giá vốn",
+        "display": "603.680.000 VND"
+      },
+      {
+        "id": "F4",
+        "label": "Tổng lợi nhuận gộp",
+        "display": "531.850.000 VND"
+      },
+      {
+        "id": "F5",
+        "label": "Biên lợi nhuận gộp tổng thể",
+        "display": "46,84%"
+      },
+      {
+        "id": "F6",
+        "label": "Tổng số đơn hàng và giá trị đơn trung bình (AOV)",
+        "display": "3.342 đơn; AOV 339.775,58 VND"
+      },
+      {
+        "id": "F7",
+        "label": "Kênh [DATA:Website]",
+        "display": "Doanh thu 454.165.000 VND (40,00%), 1.313 đơn, LN 216.547.000 VND, biên LN 47,68%"
+      },
+      {
+        "id": "F8",
+        "label": "Kênh [DATA:Sàn thương mại điện tử]",
+        "display": "Doanh thu 367.740.000 VND (32,38%), 1.110 đơn, LN 165.300.000 VND, biên LN 44,95%"
+      },
+      {
+        "id": "F9",
+        "label": "Kênh [DATA:Cửa hàng]",
+        "display": "Doanh thu 313.625.000 VND (27,62%), 919 đơn, LN 150.003.000 VND, biên LN 47,83%"
+      },
+      {
+        "id": "F10",
+        "label": "Tháng doanh thu cao nhất [DATA:2026-10]",
+        "display": "334.216.000 VND (29,43% tổng DT, 994 đơn)"
+      },
+      {
+        "id": "F11",
+        "label": "Tháng doanh thu thấp nhất [DATA:2026-09]",
+        "display": "243.511.000 VND (21,44% tổng DT, 712 đơn)"
+      },
+      {
+        "id": "F12",
+        "label": "Biến động tháng gần nhất [DATA:2026-10] so với [DATA:2026-09]",
+        "display": "tăng 90.705.000 VND (+37,25%)"
+      },
+      {
+        "id": "F13",
+        "label": "Sản phẩm doanh thu cao nhất [DATA:Sơ mi]",
+        "display": "373.257.000 VND (32,87%), biên LN 46,29%"
+      },
+      {
+        "id": "F14",
+        "label": "Sản phẩm đứng thứ hai [DATA:Quần jeans]",
+        "display": "363.893.000 VND (32,05%), biên LN 43,46%"
+      },
+      {
+        "id": "F15",
+        "label": "Sản phẩm biên lợi nhuận thấp nhất [DATA:Quần jeans]",
+        "display": "Biên LN 43,46%, doanh thu 363.893.000 VND (32,05%)"
+      },
+      {
+        "id": "F16",
+        "label": "Mức tập trung Top 3 sản phẩm dẫn đầu",
+        "display": "87,65% tổng doanh thu"
+      },
+      {
+        "id": "F17",
+        "label": "Khu vực doanh thu cao nhất [DATA:Miền Trung]",
+        "display": "380.718.000 VND (33,53%)"
+      },
+      {
+        "id": "F18",
+        "label": "Khu vực doanh thu thấp nhất [DATA:Miền Nam]",
+        "display": "355.558.000 VND (31,31%)"
+      },
+      {
+        "id": "F19",
+        "label": "Tỷ trọng mục \"Không xác định\" (ô phân loại khuyết)",
+        "display": "Khu vực Không xác định: 26.418.000 VND (2,33%); Sản phẩm Không xác định: 45.520.000 VND (4,01%)"
+      },
+      {
+        "id": "F20",
+        "label": "Chất lượng dữ liệu sau làm sạch",
+        "display": "Loại 2 dòng ở bước làm sạch; 0 ô số trống; 3 dòng có nhãn Không xác định; 0 dòng lợi nhuận âm"
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.vercel/
+deploy-package/
+backup-before-M3/
+*.log
+coverage/
+
+# Environments (Do NOT commit secret keys!)
+.env
+.env.local
+.env.*
+!.env.example
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Legacy / Python temporary caches (cleaned in P0.5)
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+data/

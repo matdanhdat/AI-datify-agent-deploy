@@ -1,0 +1,284 @@
+@import './tokens.css';
+
+/* Local Fontsource Imports (Zero external CDN calls) */
+@import '@fontsource/be-vietnam-pro/vietnamese-400.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-600.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-700.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-800.css';
+@import '@fontsource/be-vietnam-pro/latin-ext-400.css';
+@import '@fontsource/be-vietnam-pro/latin-400.css';
+
+@import '@fontsource/vt323/vietnamese-400.css';
+@import '@fontsource/vt323/latin-ext-400.css';
+@import '@fontsource/vt323/latin-400.css';
+
+/* Reset & Base Rules */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  image-rendering: pixelated;
+}
+
+html, body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-content);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  font-synthesis: none;
+}
+
+/* Custom Pixel Scrollbars */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: var(--panel);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ink);
+  border: 2px solid var(--panel);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--blue);
+}
+
+/* Typography Utility Classes */
+.font-pixel, [style*="--font-pixel"] {
+  font-family: var(--font-pixel);
+  font-weight: 400 !important;
+  letter-spacing: 0.5px;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+button.font-pixel,
+.pixel-btn.font-pixel,
+strong.font-pixel,
+b.font-pixel,
+h1.font-pixel,
+h2.font-pixel,
+h3.font-pixel,
+h4.font-pixel,
+h5.font-pixel,
+h6.font-pixel {
+  font-weight: 400 !important;
+}
+
+.font-content {
+  font-family: var(--font-content);
+}
+
+.font-excel {
+  font-family: var(--font-excel);
+}
+
+/* Fallback Typography: Be Vietnam Pro 800 uppercase (no text-shadow for text < 40px) */
+.font-pixel-fallback {
+  font-family: var(--font-content);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: none;
+}
+
+/* Section 7.7: AI Narrative Text Style (Reserved for P5) */
+.analysis-text {
+  font-family: var(--font-analysis);
+  font-size: 17px;
+  line-height: 1.7;
+  color: #1A1A1A;
+}
+
+.analysis-text h2, .analysis-text h3 {
+  font-family: var(--font-analysis);
+  font-weight: bold;
+  color: #1A1A1A;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.analysis-text p {
+  margin-bottom: 0.8em;
+}
+
+/* Keyboard Focus Accessibility (A8: Crisp Pixel Focus Ring) */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px var(--ink);
+}
+
+/* ========================================================
+   CSS PIXEL STEPPED-CORNER FORMULA (Section 5)
+   Outer shadow wrapper -> Outer stepped border -> Inner panel
+   ======================================================== */
+
+.px-shadow {
+  filter: drop-shadow(4px 4px 0 var(--ink));
+}
+
+.px-shadow-sm {
+  filter: drop-shadow(2px 2px 0 var(--ink));
+}
+
+.px-shadow-lg {
+  filter: drop-shadow(6px 6px 0 var(--ink));
+}
+
+.px-shadow-none {
+  filter: none !important;
+}
+
+/* Outer border container with stepped polygon clip-path */
+.px-outer {
+  --n: var(--n-md);
+  background-color: var(--ink);
+  padding: 3px;
+  clip-path: polygon(
+    var(--n) 0, calc(100% - var(--n)) 0, calc(100% - var(--n)) var(--n),
+    100% var(--n), 100% calc(100% - var(--n)), calc(100% - var(--n)) calc(100% - var(--n)),
+    calc(100% - var(--n)) 100%, var(--n) 100%, var(--n) calc(100% - var(--n)),
+    0 calc(100% - var(--n)), 0 var(--n), var(--n) var(--n)
+  );
+}
+
+.px-outer-sm {
+  --n: var(--n-sm);
+  background-color: var(--ink);
+  padding: 2px;
+  clip-path: polygon(
+    var(--n) 0, calc(100% - var(--n)) 0, calc(100% - var(--n)) var(--n),
+    100% var(--n), 100% calc(100% - var(--n)), calc(100% - var(--n)) calc(100% - var(--n)),
+    calc(100% - var(--n)) 100%, var(--n) 100%, var(--n) calc(100% - var(--n)),
+    0 calc(100% - var(--n)), 0 var(--n), var(--n) var(--n)
+  );
+}
+
+/* Inner panel with matching inner corner clips */
+.px-inner {
+  --n: 2px;
+  background-color: var(--panel);
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(
+    var(--n) 0, calc(100% - var(--n)) 0, calc(100% - var(--n)) var(--n),
+    100% var(--n), 100% calc(100% - var(--n)), calc(100% - var(--n)) calc(100% - var(--n)),
+    calc(100% - var(--n)) 100%, var(--n) 100%, var(--n) calc(100% - var(--n)),
+    0 calc(100% - var(--n)), 0 var(--n), var(--n) var(--n)
+  );
+}
+
+/* Dither checkered pattern for disabled states */
+.px-dither {
+  background-image: radial-gradient(var(--ink-soft) 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
+/* Step-based retro animations */
+@keyframes px-blink-step {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes px-pulse-step {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.98); }
+}
+
+@keyframes px-cloud-step {
+  from { transform: translateX(0); }
+  to { transform: translateX(320px); }
+}
+
+@keyframes px-bob-step {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Accessibility: Disable continuous animations when user prefers reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========================================================
+   PRINT STYLESHEET FOR HIGH-QUALITY PDF EXPORT (Section 11)
+   ======================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm 15mm 15mm;
+  }
+
+  body {
+    background-color: #FFFFFF !important;
+    color: #1A1A1A !important;
+  }
+
+  /* Hide interactive chrome */
+  aside,
+  nav,
+  header,
+  .no-print,
+  button,
+  .pixel-chat-dock,
+  .stepper-bar,
+  .pixel-toast-container,
+  [role="dialog"] {
+    display: none !important;
+  }
+
+  /* Clean print layout */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  /* Prevent awkward page breaks */
+  .print-avoid-break,
+  .excel-card,
+  .kpi-tile,
+  .narrative-section,
+  .narrative-paragraph {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  h1, h2, h3 {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Print header banner visible only when printing */
+  .print-only-header {
+    display: block !important;
+    border-bottom: 2px solid #1A1A1A;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+}
+
+.print-only-header {
+  display: none;
+}
+
+/* Stepped Pulse Animation for Evidence Chip Target Highlighting */
+@keyframes px-target-highlight {
+  0%, 100% { outline: 4px solid var(--accent); outline-offset: 4px; }
+  50% { outline: 4px solid var(--good); outline-offset: 6px; }
+}
+
+.px-target-highlight {
+  animation: px-target-highlight 0.8s steps(2, start) 3;
+}

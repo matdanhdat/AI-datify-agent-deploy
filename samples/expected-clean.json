@@ -1,0 +1,72 @@
+{
+  "filename": "file-co-loi-lam-sach.xlsx",
+  "total_raw_rows": 117,
+  "unique_symbols": [
+    "TMA",
+    "TMB",
+    "TMC"
+  ],
+  "by_symbol": {
+    "TMA": {
+      "raw_rows": 44,
+      "unique_dates": 42,
+      "exact_duplicates": 2,
+      "missing_ohlc": 2,
+      "missing_volume": 2,
+      "outliers_count": 1,
+      "sessions_after_recommended": 40,
+      "sessions_after_drop_outliers": 39
+    },
+    "TMB": {
+      "raw_rows": 39,
+      "unique_dates": 37,
+      "exact_duplicates": 2,
+      "missing_ohlc": 2,
+      "missing_volume": 1,
+      "outliers_count": 0,
+      "sessions_after_recommended": 35,
+      "sessions_after_drop_outliers": 35
+    },
+    "TMC": {
+      "raw_rows": 34,
+      "unique_dates": 32,
+      "exact_duplicates": 2,
+      "missing_ohlc": 1,
+      "missing_volume": 1,
+      "outliers_count": 2,
+      "sessions_after_recommended": 31,
+      "sessions_after_drop_outliers": 29
+    }
+  },
+  "expected_ops": {
+    "drop_exact_duplicates": {
+      "affected_rows": 6,
+      "default_enabled": true
+    },
+    "drop_rows_missing_ohlc": {
+      "affected_rows": 5,
+      "default_enabled": true
+    },
+    "fill_missing_volume_zero": {
+      "affected_rows": 4,
+      "default_enabled": false
+    },
+    "flag_outliers": {
+      "affected_rows": 3,
+      "default_enabled": true,
+      "affected_symbols": [
+        "TMA",
+        "TMC"
+      ]
+    },
+    "drop_flagged_outliers": {
+      "affected_rows": 3,
+      "default_enabled": false,
+      "violates_min_sessions": true,
+      "violating_symbol": "TMC",
+      "remaining_sessions": 29,
+      "required_sessions": 30
+    }
+  },
+  "zero_volume_sessions": 3
+}

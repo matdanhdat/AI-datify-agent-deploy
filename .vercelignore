@@ -1,0 +1,11 @@
+docs/screens/
+scripts/
+*.log
+.venv/
+backend/
+data/
+samples/
+*.py
+requirements.txt
+pytest.ini
+

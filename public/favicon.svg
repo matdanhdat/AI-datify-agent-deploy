@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8" width="32" height="32" shape-rendering="crispEdges">
+  <!-- Row 0: nnnnnnnn -->
+  <rect x="0" y="0" width="8" height="1" fill="#14214D"/>
+  <!-- Row 1: nnnnnnnn -->
+  <rect x="0" y="1" width="8" height="1" fill="#14214D"/>
+  <!-- Row 2: nssssssn -->
+  <rect x="0" y="2" width="1" height="1" fill="#14214D"/>
+  <rect x="1" y="2" width="6" height="1" fill="#E3AE84"/>
+  <rect x="7" y="2" width="1" height="1" fill="#14214D"/>
+  <!-- Row 3: kbbkkbbk -->
+  <rect x="0" y="3" width="1" height="1" fill="#14214D"/>
+  <rect x="1" y="3" width="2" height="1" fill="#8CC3F2"/>
+  <rect x="3" y="3" width="2" height="1" fill="#14214D"/>
+  <rect x="5" y="3" width="2" height="1" fill="#8CC3F2"/>
+  <rect x="7" y="3" width="1" height="1" fill="#14214D"/>
+  <!-- Row 4: kbbkkbbk -->
+  <rect x="0" y="4" width="1" height="1" fill="#14214D"/>
+  <rect x="1" y="4" width="2" height="1" fill="#8CC3F2"/>
+  <rect x="3" y="4" width="2" height="1" fill="#14214D"/>
+  <rect x="5" y="4" width="2" height="1" fill="#8CC3F2"/>
+  <rect x="7" y="4" width="1" height="1" fill="#14214D"/>
+  <!-- Row 5: ssssssss -->
+  <rect x="0" y="5" width="8" height="1" fill="#E3AE84"/>
+  <!-- Row 6: ssskksss -->
+  <rect x="0" y="6" width="3" height="1" fill="#E3AE84"/>
+  <rect x="3" y="6" width="2" height="1" fill="#14214D"/>
+  <rect x="5" y="6" width="3" height="1" fill="#E3AE84"/>
+  <!-- Row 7: tttttttt -->
+  <rect x="0" y="7" width="8" height="1" fill="#2BB3A3"/>
+</svg>

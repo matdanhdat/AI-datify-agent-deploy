@@ -1,0 +1,376 @@
+[
+  {
+    "id": "TC01",
+    "filename": "TC01_file_rong.csv",
+    "description": "Tệp rỗng 0 bytes",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_EMPTY"
+  },
+  {
+    "id": "TC02",
+    "filename": "TC02_duoi_sai.txt",
+    "description": "Tệp có phần mở rộng sai (.txt)",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_EXTENSION_UNSUPPORTED"
+  },
+  {
+    "id": "TC03",
+    "filename": "TC03_zip_bomb.xlsx",
+    "description": "Tệp nén zip bomb có kích thước giải nén > 200 MB",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_CORRUPT"
+  },
+  {
+    "id": "TC04",
+    "filename": "TC04_file_fake_png.xlsx",
+    "description": "Ảnh PNG đổi tên thành đuôi .xlsx",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_CONTENT_MISMATCH"
+  },
+  {
+    "id": "TC05",
+    "filename": "TC05_file_fake_pdf.csv",
+    "description": "Tài liệu PDF đổi tên thành đuôi .csv",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_CONTENT_MISMATCH"
+  },
+  {
+    "id": "TC06",
+    "filename": "TC06_xlsx_mat_sheet_DuLieu.xlsx",
+    "description": "Không có sheet DuLieu và sheet mặc định không có cột dữ liệu",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_NO_HEADER"
+  },
+  {
+    "id": "TC07",
+    "filename": "TC07_csv_thieu_cot_bat_buoc.csv",
+    "description": "Thiếu cột bắt buộc Dong (Close)",
+    "expected_ok": false,
+    "expected_code": "SCHEMA_MISSING_COLUMN"
+  },
+  {
+    "id": "TC08",
+    "filename": "TC08_trung_lap_cot.xlsx",
+    "description": "Trùng lặp cột trong bảng tính (hai cột Dong)",
+    "expected_ok": false,
+    "expected_code": "SCHEMA_DUPLICATE_COLUMN"
+  },
+  {
+    "id": "TC09",
+    "filename": "TC09_khong_tim_thay_header.csv",
+    "description": "Không tìm thấy dòng tiêu đề trong 10 dòng đầu",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_NO_HEADER"
+  },
+  {
+    "id": "TC10",
+    "filename": "TC10_ma_sai_dinh_dang.csv",
+    "description": "Mã chứng khoán chứa ký tự không hợp lệ (TMA#$@%)",
+    "expected_ok": false,
+    "expected_code": "DATA_BAD_SYMBOL"
+  },
+  {
+    "id": "TC11",
+    "filename": "TC11_gia_am.csv",
+    "description": "Giá thấp nhất bị âm (-10.5)",
+    "expected_ok": false,
+    "expected_code": "DATA_NONPOSITIVE_PRICE"
+  },
+  {
+    "id": "TC12",
+    "filename": "TC12_khoi_luong_am.xlsx",
+    "description": "Khối lượng giao dịch bị âm (-500)",
+    "expected_ok": false,
+    "expected_code": "DATA_NEGATIVE_VOLUME"
+  },
+  {
+    "id": "TC13",
+    "filename": "TC13_ohlc_khong_hop_ly.csv",
+    "description": "Giá cao nhất nhỏ hơn giá thấp nhất (High < Low)",
+    "expected_ok": false,
+    "expected_code": "DATA_OHLC_INCONSISTENT"
+  },
+  {
+    "id": "TC14",
+    "filename": "TC14_ngay_sai_dinh_dang.csv",
+    "description": "Ngày sai định dạng (32/13/2025)",
+    "expected_ok": false,
+    "expected_code": "DATA_BAD_DATE"
+  },
+  {
+    "id": "TC15",
+    "filename": "TC15_ngay_tuong_lai.xlsx",
+    "description": "Ngày giao dịch trong tương lai (2099-01-01)",
+    "expected_ok": true,
+    "expected_warning": "DATA_FUTURE_DATE"
+  },
+  {
+    "id": "TC16",
+    "filename": "TC16_trung_lap_xung_dot.csv",
+    "description": "Trùng lặp xung đột (cùng ngày cùng mã nhưng khác giá)",
+    "expected_ok": false,
+    "expected_code": "DATA_CONFLICT_DUPLICATE"
+  },
+  {
+    "id": "TC17",
+    "filename": "TC17_hon_hop_dau_thap_phan.csv",
+    "description": "Hỗn hợp dấu chấm và dấu phẩy thập phân trong cùng cột",
+    "expected_ok": false,
+    "expected_code": "DATA_MIXED_NUMBER_FORMAT"
+  },
+  {
+    "id": "TC18",
+    "filename": "TC18_so_qua_lon.xlsx",
+    "description": "Giá trị số quá lớn vượt quá giới hạn an toàn (10^16)",
+    "expected_ok": false,
+    "expected_code": "DATA_BAD_NUMBER"
+  },
+  {
+    "id": "TC19",
+    "filename": "TC19_vuot_qua_so_dong_toi_da.csv",
+    "description": "Vượt quá số dòng tối đa cho phép (> 50,000 dòng)",
+    "expected_ok": false,
+    "expected_code": "DATA_TOO_MANY_ROWS"
+  },
+  {
+    "id": "TC20",
+    "filename": "TC20_vuot_qua_so_ma_toi_da.csv",
+    "description": "Vượt quá số lượng mã cổ phiếu cho phép (11 mã > 10 mã)",
+    "expected_ok": false,
+    "expected_code": "DATA_TOO_MANY_SYMBOLS"
+  },
+  {
+    "id": "TC21",
+    "filename": "TC21_khong_du_so_phien.csv",
+    "description": "Không đủ số phiên giao dịch tối thiểu (15 phiên < 30)",
+    "expected_ok": false,
+    "expected_code": "DATA_SYMBOL_TOO_FEW_SESSIONS"
+  },
+  {
+    "id": "TC22",
+    "filename": "TC22_dong_trong_o_giua.csv",
+    "description": "Dòng dữ liệu bị thiếu khóa chính (ngày hoặc mã) ở giữa bảng",
+    "expected_ok": false,
+    "expected_code": "DATA_EMPTY_KEY"
+  },
+  {
+    "id": "TC23",
+    "filename": "TC23_cot_la_nhung_van_du_cot_chuan.csv",
+    "description": "Đầy đủ cột chuẩn kèm thêm các cột lạ ngoài danh mục",
+    "expected_ok": true,
+    "expected_warning": "SCHEMA_UNKNOWN_COLUMN"
+  },
+  {
+    "id": "TC24",
+    "filename": "TC24_trung_lap_y_het.csv",
+    "description": "Trùng lặp y hệt dòng (cùng mã, ngày, giá và khối lượng)",
+    "expected_ok": true,
+    "expected_warning": "DATA_EXACT_DUPLICATE"
+  },
+  {
+    "id": "TC25",
+    "filename": "TC25_khoang_trong_ngay_lon.xlsx",
+    "description": "Khoảng cách ngày giao dịch lớn (> 10 ngày không có phiên)",
+    "expected_ok": true,
+    "expected_warning": "DATA_LONG_GAP"
+  },
+  {
+    "id": "TC26",
+    "filename": "TC26_bien_dong_gia_lon.csv",
+    "description": "Biến động giá mạnh bất thường (> 20% trong 1 phiên)",
+    "expected_ok": true,
+    "expected_warning": "DATA_LARGE_MOVE"
+  },
+  {
+    "id": "TC27",
+    "filename": "TC27_chuoi_so_nhap_nhang.csv",
+    "description": "Chuỗi số có định dạng mơ hồ (1.234 có thể là nghìn hoặc phẩy)",
+    "expected_ok": true,
+    "expected_warning": "DATA_AMBIGUOUS_NUMBER"
+  },
+  {
+    "id": "TC28",
+    "filename": "TC28_file_utf8_bom.csv",
+    "description": "Tệp CSV chuẩn định dạng UTF-8 có BOM",
+    "expected_ok": true
+  },
+  {
+    "id": "TC29",
+    "filename": "TC29_file_windows_1258.csv",
+    "description": "Tệp CSV mã hóa theo bảng mã tiếng Việt Windows-1258",
+    "expected_ok": true
+  },
+  {
+    "id": "TC30",
+    "filename": "TC30_file_dau_cham_phay.csv",
+    "description": "Tệp CSV phân cách bằng dấu chấm phẩy (;) và dấu phẩy thập phân",
+    "expected_ok": true
+  },
+  {
+    "id": "TC31",
+    "filename": "TC31_file_dau_tab.csv",
+    "description": "Tệp phân cách bằng dấu Tab",
+    "expected_ok": true
+  },
+  {
+    "id": "TC32",
+    "filename": "TC32_file_co_cong_thuc_excel.xlsx",
+    "description": "Tệp Excel có chứa công thức tính toán và giá trị đã lưu",
+    "expected_ok": true
+  },
+  {
+    "id": "TC33",
+    "filename": "TC33_file_ten_cot_khong_dau.xlsx",
+    "description": "Tên cột viết thường không dấu (ngay, ma, mo, cao, thap, dong, khoi_luong)",
+    "expected_ok": true
+  },
+  {
+    "id": "TC34",
+    "filename": "TC34_file_header_o_dong_5.xlsx",
+    "description": "Dòng tiêu đề bắt đầu ở dòng 5 (4 dòng đầu là ghi chú công ty)",
+    "expected_ok": true
+  },
+  {
+    "id": "TC35",
+    "filename": "TC35_reject_password_protected.xlsx",
+    "description": "Tệp có mật khẩu hoặc mã hóa OLE2 đổi đuôi .xlsx",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_PASSWORD_PROTECTED"
+  },
+  {
+    "id": "TC36",
+    "filename": "TC36_reject_xls_legacy.xls",
+    "description": "Tệp định dạng Excel cũ (.xls)",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_XLS_LEGACY"
+  },
+  {
+    "id": "TC37",
+    "filename": "TC37_reject_word.docx",
+    "description": "Tệp văn bản Word (.docx)",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_EXTENSION_UNSUPPORTED"
+  },
+  {
+    "id": "TC38",
+    "filename": "TC38_reject_pdf.pdf",
+    "description": "Tệp tài liệu PDF (.pdf)",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_EXTENSION_UNSUPPORTED"
+  },
+  {
+    "id": "TC39",
+    "filename": "TC39_reject_image.png",
+    "description": "Tệp hình ảnh (.png)",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_EXTENSION_UNSUPPORTED"
+  },
+  {
+    "id": "TC40",
+    "filename": "TC40_reject_archive.zip",
+    "description": "Tệp nén lưu trữ (.zip)",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_EXTENSION_UNSUPPORTED"
+  },
+  {
+    "id": "TC41",
+    "filename": "TC41_reject_khong_co_duoi",
+    "description": "Tệp không có phần mở rộng",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_EXTENSION_UNSUPPORTED"
+  },
+  {
+    "id": "TC42",
+    "filename": "TC42_reject_zip_cut.xlsx",
+    "description": "Tệp ZIP bị cắt cụt hoặc hỏng cấu trúc",
+    "expected_ok": false,
+    "expected_code": "UPLOAD_CORRUPT"
+  },
+  {
+    "id": "TC43",
+    "filename": "TC43_reject_o_ma_ngay_trong.csv",
+    "description": "Ô ngày giao dịch bị để trống",
+    "expected_ok": false,
+    "expected_code": "DATA_EMPTY_KEY"
+  },
+  {
+    "id": "TC44",
+    "filename": "TC44_reject_cot_dong_trong_40_pct.csv",
+    "description": "Cột Đóng bị để trống quá 40% số dòng",
+    "expected_ok": false,
+    "expected_code": "DATA_TOO_MANY_MISSING"
+  },
+  {
+    "id": "TC45",
+    "filename": "TC45_reject_gia_co_ky_hieu_tien_te.csv",
+    "description": "Giá chứa ký hiệu tiền tệ 25.400đ",
+    "expected_ok": false,
+    "expected_code": "DATA_BAD_NUMBER"
+  },
+  {
+    "id": "TC46",
+    "filename": "TC46_reject_ngay_nhap_nhang_dinh_dang.csv",
+    "description": "Định dạng ngày nhập nhằng giữa dd/mm và mm/dd",
+    "expected_ok": false,
+    "expected_code": "DATA_DATE_AMBIGUOUS"
+  },
+  {
+    "id": "TC47",
+    "filename": "TC47_reject_mot_ma_dung_29_phien.csv",
+    "description": "Một mã chỉ có đúng 29 phiên (dưới ngưỡng 30 phiên)",
+    "expected_ok": false,
+    "expected_code": "DATA_SYMBOL_TOO_FEW_SESSIONS"
+  },
+  {
+    "id": "TC48",
+    "filename": "TC48_reject_11_ma_vuot_nguong.csv",
+    "description": "Tệp chứa 11 mã cổ phiếu (vượt giới hạn tối đa 10 mã)",
+    "expected_ok": false,
+    "expected_code": "DATA_TOO_MANY_SYMBOLS"
+  },
+  {
+    "id": "TC49",
+    "filename": "TC49_accept_mot_ma_dung_30_phien.csv",
+    "description": "Một mã có đúng 30 phiên giao dịch (vừa đủ ngưỡng)",
+    "expected_ok": true
+  },
+  {
+    "id": "TC50",
+    "filename": "TC50_accept_ten_cot_tieng_anh.csv",
+    "description": "Tên cột bằng tiếng Anh (Date, Symbol, Open, High, Low, Close, Volume)",
+    "expected_ok": true
+  },
+  {
+    "id": "TC51",
+    "filename": "TC51_accept_nhieu_sheet_DuLieu_sau.xlsx",
+    "description": "Nhiều sheet với sheet DuLieu nằm ở vị trí thứ hai",
+    "expected_ok": true
+  },
+  {
+    "id": "TC52",
+    "filename": "TC52_accept_nhieu_sheet_khong_co_DuLieu.xlsx",
+    "description": "Nhiều sheet không có sheet DuLieu (tự động chọn sheet đầu)",
+    "expected_ok": true,
+    "expected_warning": "SCHEMA_SHEET_FALLBACK"
+  },
+  {
+    "id": "TC53",
+    "filename": "TC53_accept_o_trong_it.csv",
+    "description": "Ít ô trống khối lượng (chấp nhận kèm cảnh báo)",
+    "expected_ok": true,
+    "expected_warning": "DATA_MISSING_VALUES"
+  },
+  {
+    "id": "TC54",
+    "filename": "TC54_accept_dong_trong_cuoi_sheet.xlsx",
+    "description": "Các dòng trống có định dạng ở cuối sheet (bỏ qua im lặng)",
+    "expected_ok": true
+  },
+  {
+    "id": "TC55",
+    "filename": "TC55_accept_so_nhap_nhang_25_400.csv",
+    "description": "Số dạng 25.400 có thể hiểu nhầm (cảnh báo)",
+    "expected_ok": true,
+    "expected_warning": "DATA_AMBIGUOUS_NUMBER"
+  }
+]
