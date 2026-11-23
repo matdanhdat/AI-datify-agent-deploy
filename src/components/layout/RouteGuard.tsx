@@ -36,8 +36,18 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
   const isUnlocked = isBasePage || (session && session.unlocked_pages.includes(pageKey));
 
   if (!isUnlocked && session) {
-    const explanation = getLockExplanation(pageKey, session.state);
-    const redirectTarget = getCurrentStepPath(session.state);
+    const isBusiness = session.dataset
+      ? session.dataset.kind === 'business'
+      : Boolean(session.business_context);
+    const metricConfirmed = Boolean(session.metric_selection_confirmed);
+    const explanation = getLockExplanation(pageKey, session.state, isBusiness, metricConfirmed);
+    let redirectTarget = getCurrentStepPath(session.state, isBusiness, metricConfirmed);
+    if (pageKey === 'analyze' && isBusiness && !metricConfirmed && session.state === 'clean_approved') {
+      redirectTarget = '/trao-doi';
+    }
+    if (pageKey === 'exchange' && !isUnlocked) {
+      redirectTarget = '/lam-sach';
+    }
 
     // Trigger explanation dialog upon attempt
     if (!blocked) {

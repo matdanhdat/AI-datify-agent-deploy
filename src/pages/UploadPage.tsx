@@ -4,7 +4,7 @@ import { ArtifactStore } from '../core/artifacts';
 import type { RawDataset } from '../core/dataset';
 import type { ColumnRole, ColumnRoleMapping } from '../core/businessTable';
 import type { ValidationIssue } from '../core/schemas';
-import type { ValidationOutcome, ValidationProgress } from '../core/validator';
+import { validateBytes, type ValidationOutcome, type ValidationProgress } from '../core/validator';
 import { normalizeContext } from '../core/context/normalize';
 import {
   EXTRA_INFO_MAX_CHARS,
@@ -100,13 +100,14 @@ export const UploadPage: React.FC = () => {
   }, [session?.id, session?.dataset?.kind]);
 
   // Two-tab File Requirements Card ('trading' | 'business')
-  const [fileReqTab, setFileReqTab] = useState<'trading' | 'business'>('trading');
+  const [fileReqTab, setFileReqTab] = useState<'trading' | 'business'>('business');
 
   // Upload States: 'idle' | 'dragover' | 'processing' | 'success' | 'rejected'
   const [dragOver, setDragOver] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState<ValidationProgress | null>(null);
   const [outcome, setOutcome] = useState<ValidationOutcome | null>(null);
+  const isBusinessMode = outcome ? (outcome.ok ? outcome.meta.kind === 'business' : false) : fileReqTab === 'business';
 
   // Role Changer State for Business Dataset
   const [businessRoles, setBusinessRoles] = useState<ColumnRoleMapping[]>([]);
@@ -138,69 +139,20 @@ export const UploadPage: React.FC = () => {
     if (p.get('tab') === 'business') {
       setFileReqTab('business');
     }
-    if (p.get('demoBusiness') === '1') {
-      const demoRoles: ColumnRoleMapping[] = [
-        { file_header: 'Mã đơn', key: 'col_0_id', role: 'id' },
-        { file_header: 'Ngày đặt', key: 'col_1_time', role: 'time' },
-        { file_header: 'Khách hàng', key: 'col_2_dim', role: 'dimension' },
-        { file_header: 'Kênh bán', key: 'col_3_dim', role: 'dimension' },
-        { file_header: 'Sản phẩm', key: 'col_4_dim', role: 'dimension' },
-        { file_header: 'Khu vực', key: 'col_5_dim', role: 'dimension' },
-        { file_header: 'Số lượng', key: 'col_6_measure', role: 'measure' },
-        { file_header: 'Đơn giá', key: 'col_7_measure', role: 'measure' },
-        { file_header: 'Doanh thu (VND)', key: 'col_8_measure', role: 'measure', unit: 'VND' },
-        { file_header: 'Chi phí giá vốn (VND)', key: 'col_9_measure', role: 'measure', unit: 'VND' },
-        { file_header: 'Lợi nhuận gộp (VND)', key: 'col_10_measure', role: 'measure', unit: 'VND' },
-      ];
-      setBusinessRoles(demoRoles);
-      const demoRows = Array.from({ length: 20 }, (_, i) => [
-        `DS-00${i + 1}`,
-        `2025-01-${String(i + 1).padStart(2, '0')}`,
-        i % 2 === 0 ? 'Nguyễn Văn A' : 'Trần Thị B',
-        i % 3 === 0 ? 'Shopee' : 'Cửa hàng',
-        i % 2 === 0 ? 'Áo sơ mi lụa' : 'Quần tây âu',
-        'Miền Bắc',
-        10 + i,
-        250000,
-        (10 + i) * 250000,
-        (10 + i) * 150000,
-        (10 + i) * 100000,
-      ]);
-      setOutcome({
-        ok: true,
-        summary: {
-          rows: 50,
-          symbols: [],
-          date_from: '2025-01-02',
-          date_to: '2025-02-28',
-          skipped_blank_rows: 2,
-          source_sheet: null,
-          sha256: '88a31e84d2b2fe8e9065a3d7b7e289df713b1853f191b75c805ebdf5f1d07c08',
-        },
-        column_mapping: demoRoles.map((r, idx) => ({
-          colIndex: idx,
-          fileHeader: r.file_header,
-          key: r.key,
-          label_vi: r.file_header,
-          role: r.role,
-          required: r.role === 'measure' || r.role === 'dimension',
-        })),
-        warnings: [],
-        preview: {
-          columns: demoRoles.map((r) => r.file_header),
-          rows: demoRows,
-        },
-        meta: {
-          filename: 'du-lieu-test-ban-le.csv',
-          rows: 50,
-          symbols: [],
-          date_from: '2025-01-02',
-          date_to: '2025-02-28',
-          kind: 'business',
-          columns_roles: demoRoles,
-          sha256: '88a31e84d2b2fe8e9065a3d7b7e289df713b1853f191b75c805ebdf5f1d07c08',
-        },
-      });
+    if (p.get('demoBusiness') === '1' || p.get('sample') === 'business') {
+      fetch('/samples/business/du-lieu-test-ban-le.csv')
+        .then((res) => (res.ok ? res.arrayBuffer() : null))
+        .then(async (buf) => {
+          if (!buf) return;
+          const valRes = await validateBytes('du-lieu-test-ban-le.csv', new Uint8Array(buf));
+          if (valRes.ok) {
+            setOutcome(valRes);
+            if (valRes.meta.columns_roles) {
+              setBusinessRoles(valRes.meta.columns_roles as ColumnRoleMapping[]);
+            }
+          }
+        })
+        .catch((e) => console.error('Failed to load demo business sample', e));
     }
     const demoU2 = p.get('demoU2');
     if (demoU2 === 'empty') {
@@ -252,10 +204,13 @@ export const UploadPage: React.FC = () => {
   );
 
   const isContextValid = useMemo(() => {
+    if (isBusinessMode) {
+      return extraInfo.trim().length <= EXTRA_INFO_MAX_CHARS;
+    }
     if (extraInfo.trim().length > EXTRA_INFO_MAX_CHARS) return false;
     if (parsedQuestions.length === 0 || parsedQuestions.length > MAX_ANALYSIS_QUESTIONS) return false;
     return parsedQuestions.every((q) => q.length >= 5 && q.length <= 200);
-  }, [parsedQuestions, extraInfo]);
+  }, [isBusinessMode, parsedQuestions, extraInfo]);
 
   // Save Business Context handler
   const handleSaveContext = useCallback(
@@ -276,12 +231,15 @@ export const UploadPage: React.FC = () => {
         .map((l) => l.trim())
         .filter((l) => l.length > 0);
 
-      const res = normalizeContext({
-        company_name: cName,
-        role: r,
-        extra_info: extra,
-        analysis_questions: rawQuestions,
-      });
+      const res = normalizeContext(
+        {
+          company_name: cName,
+          role: r,
+          extra_info: extra,
+          analysis_questions: isBusinessMode ? [] : rawQuestions,
+        },
+        { allowEmptyQuestions: isBusinessMode }
+      );
 
       if (!res.ok) {
         const errMsg = res.error || 'Dữ liệu bối cảnh không hợp lệ.';
@@ -720,9 +678,9 @@ export const UploadPage: React.FC = () => {
         </div>
       </div>
 
-      {/* FRAME 1: BỐI CẢNH VÀ YÊU CẦU PHÂN TÍCH (Prompt D3) */}
+      {/* FRAME 1: BỐI CẢNH VÀ YÊU CẦU PHÂN TÍCH (Prompt D3 & 2A-2: Bỏ yêu cầu phân tích ở chế độ kinh doanh) */}
       <PixelPanel
-        title="1. BỐI CẢNH VÀ YÊU CẦU PHÂN TÍCH"
+        title={isBusinessMode ? "1. BỐI CẢNH DOANH NGHIỆP (TÙY CHỌN)" : "1. BỐI CẢNH VÀ YÊU CẦU PHÂN TÍCH"}
         headerAction={
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {contextSaved && (
@@ -938,207 +896,209 @@ export const UploadPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Analysis Questions (Mandatory, Prompt U2) */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-              <label htmlFor={questionsId} style={{ fontSize: '13px', fontWeight: 600 }}>
-                <span style={{ color: 'var(--bad)', marginRight: '4px' }}>*</span>
-                {vi.contextForm.questionsLabel}
-                <span style={{ fontSize: '11px', color: 'var(--bad)', marginLeft: '6px' }}>
-                  {vi.contextForm.requiredTag}
+          {/* Analysis Questions (Prompt U2 & 2A-2: Chỉ hiển thị ở chế độ giao dịch) */}
+          {!isBusinessMode && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label htmlFor={questionsId} style={{ fontSize: '13px', fontWeight: 600 }}>
+                  <span style={{ color: 'var(--bad)', marginRight: '4px' }}>*</span>
+                  {vi.contextForm.questionsLabel}
+                  <span style={{ fontSize: '11px', color: 'var(--bad)', marginLeft: '6px' }}>
+                    {vi.contextForm.requiredTag}
+                  </span>
+                </label>
+                <span
+                  data-testid="questions-counter"
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    color:
+                      parsedQuestions.length > MAX_ANALYSIS_QUESTIONS
+                        ? 'var(--bad)'
+                        : parsedQuestions.length === 0
+                        ? 'var(--ink-soft)'
+                        : 'var(--good-d)',
+                  }}
+                >
+                  {parsedQuestions.length}/{MAX_ANALYSIS_QUESTIONS} câu
                 </span>
-              </label>
-              <span
-                data-testid="questions-counter"
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 'bold',
-                  color:
-                    parsedQuestions.length > MAX_ANALYSIS_QUESTIONS
-                      ? 'var(--bad)'
-                      : parsedQuestions.length === 0
-                      ? 'var(--ink-soft)'
-                      : 'var(--good-d)',
-                }}
-              >
-                {parsedQuestions.length}/{MAX_ANALYSIS_QUESTIONS} câu
-              </span>
-            </div>
-
-            <textarea
-              id={questionsId}
-              rows={4}
-              value={questionsText}
-              placeholder={"Mỗi dòng một câu hỏi, tối đa 8 câu.\nVí dụ:\nDoanh thu theo kênh bán nào cao nhất?\nMã nào rủi ro (biến động) cao nhất?"}
-              onChange={(e) => {
-                setQuestionsText(e.target.value);
-                if (limitNotice && parseQuestionLines(e.target.value).length < MAX_ANALYSIS_QUESTIONS) {
-                  setLimitNotice(null);
-                }
-              }}
-              onBlur={() => handleSaveContext()}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                border: `2px solid ${fieldErrors.analysis_questions ? 'var(--bad)' : isContextValid ? 'var(--ink)' : 'var(--warn-text)'}`,
-                backgroundColor: 'var(--white)',
-                fontFamily: 'var(--font-content)',
-                fontSize: '13px',
-                lineHeight: 1.5,
-              }}
-            />
-            {fieldErrors.analysis_questions && (
-              <div role="alert" style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px', fontWeight: 600 }}>
-                {fieldErrors.analysis_questions}
-              </div>
-            )}
-
-            {/* Soft warning when exactly 1 question is entered (non-blocking) */}
-            <div aria-live="polite">
-              {parsedQuestions.length === 1 && (
-                <div
-                  role="status"
-                  data-testid="single-question-warning"
-                  style={{
-                    marginTop: '6px',
-                    padding: '6px 10px',
-                    backgroundColor: 'var(--warn-bg)',
-                    border: '1px solid var(--warn-text)',
-                    color: 'var(--ink)',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <PixelIcon name="info" size={14} color="var(--warn-text)" />
-                  <span>{vi.contextForm.questionsSingleWarning}</span>
-                </div>
-              )}
-
-              {limitNotice && (
-                <div
-                  role="status"
-                  data-testid="questions-limit-notice"
-                  style={{
-                    marginTop: '6px',
-                    padding: '6px 10px',
-                    backgroundColor: 'var(--warn-bg)',
-                    border: '1px solid var(--bad)',
-                    color: 'var(--bad)',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <PixelIcon name="warning" size={14} color="var(--bad)" />
-                  <span>{limitNotice}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Clickable Suggestion Box with PixelTabs (Prompt U2) */}
-            <div
-              data-testid="question-suggestions-box"
-              style={{
-                marginTop: '12px',
-                padding: '12px',
-                backgroundColor: 'var(--panel)',
-                border: '2px solid var(--ink)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: '8px',
-                  marginBottom: '8px',
-                }}
-              >
-                <div>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
-                    {vi.contextForm.suggestionsTitle}
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'var(--ink-soft)', marginLeft: '8px' }}>
-                    {vi.contextForm.suggestionsHint}
-                  </span>
-                </div>
-                <PixelButton
-                  variant="secondary"
-                  font="content"
-                  size="sm"
-                  onClick={handleUseTop3Click}
-                >
-                  {vi.contextForm.useTop3Button}
-                </PixelButton>
               </div>
 
-              <PixelTabs
-                tabs={suggestionTabs}
-                activeTab={suggestionTab}
-                onChange={(id) => setSuggestionTab(id as SuggestionGroup)}
-                style={{ marginBottom: '10px' }}
+              <textarea
+                id={questionsId}
+                rows={4}
+                value={questionsText}
+                placeholder={"Mỗi dòng một câu hỏi, tối đa 8 câu.\nVí dụ:\nDoanh thu theo kênh bán nào cao nhất?\nMã nào rủi ro (biến động) cao nhất?"}
+                onChange={(e) => {
+                  setQuestionsText(e.target.value);
+                  if (limitNotice && parseQuestionLines(e.target.value).length < MAX_ANALYSIS_QUESTIONS) {
+                    setLimitNotice(null);
+                  }
+                }}
+                onBlur={() => handleSaveContext()}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  border: `2px solid ${fieldErrors.analysis_questions ? 'var(--bad)' : isContextValid ? 'var(--ink)' : 'var(--warn-text)'}`,
+                  backgroundColor: 'var(--white)',
+                  fontFamily: 'var(--font-content)',
+                  fontSize: '13px',
+                  lineHeight: 1.5,
+                }}
               />
+              {fieldErrors.analysis_questions && (
+                <div role="alert" style={{ fontSize: '11px', color: 'var(--bad)', marginTop: '2px', fontWeight: 600 }}>
+                  {fieldErrors.analysis_questions}
+                </div>
+              )}
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {visibleSuggestions.map((item) => {
-                  const isAdded = hasQuestionInText(questionsText, item.text);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={isAdded}
-                      data-suggestion-id={item.id}
-                      onClick={() => handleToggleSuggestion(item.text)}
-                      style={{
-                        padding: '5px 10px',
-                        backgroundColor: isAdded ? 'var(--good-bg)' : 'var(--white)',
-                        border: isAdded ? '1px dashed var(--good-d)' : '1px solid var(--ink)',
-                        color: isAdded ? 'var(--good-d)' : 'var(--ink)',
-                        opacity: isAdded ? 0.85 : 1,
-                        fontFamily: 'var(--font-content)',
-                        fontSize: '12px',
-                        lineHeight: 1.4,
-                        cursor: 'pointer',
-                        borderRadius: 0,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        textAlign: 'left',
-                      }}
-                    >
-                      {isAdded ? (
-                        <PixelIcon name="check" size={12} color="var(--good-d)" />
-                      ) : (
-                        <span aria-hidden="true" style={{ fontWeight: 700 }}>
-                          +
-                        </span>
-                      )}
-                      <span>{item.text}</span>
-                      {isAdded && (
-                        <span
-                          style={{
-                            fontSize: '10px',
-                            fontWeight: 700,
-                            padding: '1px 4px',
-                            border: '1px solid var(--good-d)',
-                            backgroundColor: 'var(--white)',
-                            color: 'var(--good-d)',
-                          }}
-                        >
-                          {vi.contextForm.suggestionAddedTag}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+              {/* Soft warning when exactly 1 question is entered (non-blocking) */}
+              <div aria-live="polite">
+                {parsedQuestions.length === 1 && (
+                  <div
+                    role="status"
+                    data-testid="single-question-warning"
+                    style={{
+                      marginTop: '6px',
+                      padding: '6px 10px',
+                      backgroundColor: 'var(--warn-bg)',
+                      border: '1px solid var(--warn-text)',
+                      color: 'var(--ink)',
+                      fontSize: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <PixelIcon name="info" size={14} color="var(--warn-text)" />
+                    <span>{vi.contextForm.questionsSingleWarning}</span>
+                  </div>
+                )}
+
+                {limitNotice && (
+                  <div
+                    role="status"
+                    data-testid="questions-limit-notice"
+                    style={{
+                      marginTop: '6px',
+                      padding: '6px 10px',
+                      backgroundColor: 'var(--warn-bg)',
+                      border: '1px solid var(--bad)',
+                      color: 'var(--bad)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <PixelIcon name="warning" size={14} color="var(--bad)" />
+                    <span>{limitNotice}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Clickable Suggestion Box with PixelTabs (Prompt U2) */}
+              <div
+                data-testid="question-suggestions-box"
+                style={{
+                  marginTop: '12px',
+                  padding: '12px',
+                  backgroundColor: 'var(--panel)',
+                  border: '2px solid var(--ink)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    marginBottom: '8px',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--ink)' }}>
+                      {vi.contextForm.suggestionsTitle}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--ink-soft)', marginLeft: '8px' }}>
+                      {vi.contextForm.suggestionsHint}
+                    </span>
+                  </div>
+                  <PixelButton
+                    variant="secondary"
+                    font="content"
+                    size="sm"
+                    onClick={handleUseTop3Click}
+                  >
+                    {vi.contextForm.useTop3Button}
+                  </PixelButton>
+                </div>
+
+                <PixelTabs
+                  tabs={suggestionTabs}
+                  activeTab={suggestionTab}
+                  onChange={(id) => setSuggestionTab(id as SuggestionGroup)}
+                  style={{ marginBottom: '10px' }}
+                />
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {visibleSuggestions.map((item) => {
+                    const isAdded = hasQuestionInText(questionsText, item.text);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-pressed={isAdded}
+                        data-suggestion-id={item.id}
+                        onClick={() => handleToggleSuggestion(item.text)}
+                        style={{
+                          padding: '5px 10px',
+                          backgroundColor: isAdded ? 'var(--good-bg)' : 'var(--white)',
+                          border: isAdded ? '1px dashed var(--good-d)' : '1px solid var(--ink)',
+                          color: isAdded ? 'var(--good-d)' : 'var(--ink)',
+                          opacity: isAdded ? 0.85 : 1,
+                          fontFamily: 'var(--font-content)',
+                          fontSize: '12px',
+                          lineHeight: 1.4,
+                          cursor: 'pointer',
+                          borderRadius: 0,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          textAlign: 'left',
+                        }}
+                      >
+                        {isAdded ? (
+                          <PixelIcon name="check" size={12} color="var(--good-d)" />
+                        ) : (
+                          <span aria-hidden="true" style={{ fontWeight: 700 }}>
+                            +
+                          </span>
+                        )}
+                        <span>{item.text}</span>
+                        {isAdded && (
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              padding: '1px 4px',
+                              border: '1px solid var(--good-d)',
+                              backgroundColor: 'var(--white)',
+                              color: 'var(--good-d)',
+                            }}
+                          >
+                            {vi.contextForm.suggestionAddedTag}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </PixelPanel>
 
@@ -1969,8 +1929,15 @@ export const UploadPage: React.FC = () => {
                       download
                       style={{ textDecoration: 'none', marginTop: '4px' }}
                     >
-                      <PixelButton variant="ghost" size="sm" icon="warning" style={{ width: '100%' }}>
-                        File kinh doanh có lỗi (thử nghiệm)
+                      <PixelButton
+                        variant="secondary"
+                        size="sm"
+                        icon="warning"
+                        font="content"
+                        className="font-content"
+                        style={{ width: '100%', fontSize: '13px' }}
+                      >
+                        File mẫu có lỗi (thử làm sạch)
                       </PixelButton>
                     </a>
                   </div>

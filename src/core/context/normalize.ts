@@ -150,7 +150,10 @@ export function computeContextHash(ctx: BusinessContext): string {
 /**
  * Sanitizes and validates business context and user questions.
  */
-export function normalizeContext(input: unknown): NormalizeContextResult {
+export function normalizeContext(
+  input: unknown,
+  options?: { allowEmptyQuestions?: boolean }
+): NormalizeContextResult {
   if (!input || typeof input !== 'object') {
     return { ok: false, error: 'Dữ liệu bối cảnh không hợp lệ.' };
   }
@@ -200,7 +203,7 @@ export function normalizeContext(input: unknown): NormalizeContextResult {
     cleanedQuestions.push(cleaned);
   }
 
-  if (cleanedQuestions.length === 0) {
+  if (cleanedQuestions.length === 0 && !options?.allowEmptyQuestions) {
     return { ok: false, error: 'Bạn cần nhập ít nhất một yêu cầu phân tích.' };
   }
 

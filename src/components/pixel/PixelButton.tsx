@@ -115,7 +115,7 @@ export const PixelButton: React.FC<PixelButtonProps> = ({
           onClick(e);
         }
       }}
-      className={`pixel-btn ${isContentFont ? 'font-content' : 'font-pixel'} ${isDisabled ? 'px-dither' : 'px-shadow-sm'} ${className}`}
+      className={`pixel-btn ${isContentFont ? 'font-content' : 'font-pixel'} ${isDisabled ? 'px-dither' : (variant === 'ghost' ? '' : 'px-shadow-sm')} ${className}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

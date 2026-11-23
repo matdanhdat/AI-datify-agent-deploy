@@ -82,7 +82,7 @@ export const DatasetMetaSchema = z.object({
 export type DatasetMeta = z.infer<typeof DatasetMetaSchema>;
 
 // Step definitions
-export const StepKeySchema = z.enum(['upload', 'clean', 'review', 'analyze', 'report']);
+export const StepKeySchema = z.enum(['upload', 'clean', 'review', 'exchange', 'analyze', 'report']);
 export type StepKey = z.infer<typeof StepKeySchema>;
 
 export const StepStatusSchema = z.enum(['locked', 'current', 'done']);
@@ -120,9 +120,12 @@ export const SessionSchema = z.object({
   clean_version: z.number().int().optional().nullable(),
   reviewer_name: z.string().max(60).optional().nullable().describe('Tên người duyệt Cổng 1 / Cổng 2'),
   report_status: ReportStatusSchema.default('none'),
-  steps: z.array(StepInfoSchema).length(5).describe('Đúng 5 bước quy trình'),
+  steps: z.array(StepInfoSchema).min(5).max(6).describe('5 bước quy trình giao dịch hoặc 6 bước kinh doanh'),
   unlocked_pages: z.array(z.string()).describe('Danh sách các trang được phép truy cập'),
   business_context: BusinessContextSchema.optional().nullable(),
+  selected_metric_ids: z.array(z.string()).optional().nullable(),
+  business_questions: z.array(z.string()).optional().nullable(),
+  metric_selection_confirmed: z.boolean().optional().nullable(),
 });
 export type Session = z.infer<typeof SessionSchema>;
 
@@ -339,6 +342,7 @@ export const AnalysisResultSchema = z.object({
   assumptions: AnalysisAssumptionsSchema,
   warnings: z.array(z.string()).default([]),
   business_analysis: z.any().optional().describe('Tóm tắt phân tích dữ liệu kinh doanh (M3-A)'),
+  selected_analysis: z.any().optional().describe('Kết quả tính chọn lọc 13 chỉ số theo catalog (1D-1/1D-2)'),
 });
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 export type AnalysisArtifact = AnalysisResult;

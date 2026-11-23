@@ -52,6 +52,9 @@ export const PixelChart: React.FC<PixelChartProps> = ({
         renderer: 'svg',
       });
       chartInstanceRef.current = chart;
+      (chartContainerRef.current as any).__echartsInstance = chart;
+      (chartContainerRef.current as any).__chartSpec = spec;
+      chartContainerRef.current.setAttribute('data-chart-ready', 'true');
 
       const option = buildEChartsOption(spec);
       chart.setOption(option, true);
@@ -211,6 +214,17 @@ export const PixelChart: React.FC<PixelChartProps> = ({
         // ECharts Visual Container
         <div
           ref={chartContainerRef}
+          data-testid="chart-container"
+          data-chart-id={spec.id}
+          data-chart-title={spec.title_vi}
+          data-chart-spec={JSON.stringify({
+            id: spec.id,
+            title_vi: spec.title_vi,
+            subtitle_vi: spec.subtitle_vi,
+            kind: spec.kind,
+            series: spec.data?.series || [],
+            table: spec.table,
+          })}
           style={{ width: '100%', height, minHeight: '220px' }}
           role="img"
           aria-label={spec.aria_vi || spec.title_vi}

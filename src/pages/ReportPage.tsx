@@ -44,6 +44,8 @@ import { downloadExcelReport } from '../services/exportExcel';
 import { getNarrative, getReportStatus } from '../services/readers';
 import { createDemoAnalysisResult } from '../services/demoAnalysis';
 import { isM3AnalysisEnabled } from '../services/appConfig';
+import { BUSINESS_METRIC_CATALOG } from '../core/metrics/businessCatalog';
+import { computeSelected, evaluateCodeConfidence } from '../core/metrics/businessComputeSelected';
 import {
   generateBusinessInsights,
   getStoredBusinessInsights,
@@ -145,7 +147,7 @@ export const ReportPage: React.FC = () => {
                 if (rep) setReport(rep);
               }
             })
-            .catch(() => {})
+            .catch(() => { })
             .finally(() => {
               if (!controller.signal.aborted) setBizInsightsLoading(false);
             });
@@ -229,6 +231,24 @@ export const ReportPage: React.FC = () => {
     }
 
     const bizApproved = report?.status === 'approved';
+    const rawTable = session ? ArtifactStore.get<any>(session.id, 'raw') : null;
+    const selectedAnalysis =
+      (analysis as any)?.selected_analysis ||
+      (bizSummary as any)?.selected_analysis ||
+      (rawTable ? computeSelected(rawTable, session?.selected_metric_ids || ['total_revenue'], { profile: bizSummary as any }) : null);
+
+    const activeMetricIds = session?.selected_metric_ids && session.selected_metric_ids.length > 0
+      ? session.selected_metric_ids
+      : (selectedAnalysis?.metrics ? Object.keys(selectedAnalysis.metrics) : ['total_revenue']);
+
+    const moneyCol = rawTable?.columns?.find((c: any) => c.role === 'measure' && Boolean(c.detectedUnit));
+    const originalUnit = moneyCol?.userUnit || moneyCol?.detectedUnit || 'đồng';
+    const unitSourceText =
+      moneyCol?.unitSource === 'header'
+        ? 'tiêu đề cột'
+        : moneyCol?.unitSource === 'người dùng xác nhận'
+          ? 'người dùng xác nhận'
+          : 'mặc định';
     const handleApproveBusinessGate2 = async () => {
       if (!session) return;
       if (!reviewerName.trim()) {
@@ -273,7 +293,7 @@ export const ReportPage: React.FC = () => {
               BÁO CÁO PHÂN TÍCH KINH DOANH & CỔNG DUYỆT 2
             </h2>
             <p className="font-content" style={{ color: 'var(--ink-soft)', marginTop: '4px', fontSize: '14px' }}>
-              Mọi con số do mã nguồn tính từ {bizSummary.total_rows} dòng sạch; bấm mã bằng chứng [F1..Fn] để đối chiếu trực tiếp.
+              Mọi con số do mã nguồn tính từ {bizSummary.total_rows} dòng sạch; bấm mã bằng chứng [F1..Fn] để đối chiếu đối soát.
             </p>
           </div>
           {bizApproved && report?.reviewer_name && (
@@ -308,98 +328,308 @@ export const ReportPage: React.FC = () => {
           </div>
         )}
 
-        {/* 6 Core Business KPI Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 'var(--space-3)' }}>
-          {[
-            {
-              label: 'TỔNG DOANH THU',
-              value: `${formatNumber(bizSummary.totals.revenue, 0)} VND`,
-              reason: undefined,
-              tone: 'var(--blue)',
-            },
-            {
-              label: 'LỢI NHUẬN GỘP',
-              value: bizSummary.totals.profit !== null ? `${formatNumber(bizSummary.totals.profit, 0)} VND` : 'KHÔNG ĐỦ DỮ LIỆU',
-              reason: bizSummary.totals.profit === null ? bizSummary.unavailable?.find((u) => u.id === 'gross_profit_total')?.reason_vi || 'Thiếu cột Giá vốn/Lợi nhuận' : undefined,
-              tone: bizSummary.totals.profit !== null ? 'var(--good-d)' : 'var(--ink-soft)',
-            },
-            {
-              label: 'BIÊN LỢI NHUẬN GỘP',
-              value: bizSummary.totals.gross_margin_pct !== null ? formatPercent(bizSummary.totals.gross_margin_pct / 100) : 'KHÔNG ĐỦ DỮ LIỆU',
-              reason: bizSummary.totals.gross_margin_pct === null ? bizSummary.unavailable?.find((u) => u.id === 'gross_margin_pct')?.reason_vi || 'Thiếu cột Giá vốn/Lợi nhuận' : undefined,
-              tone: bizSummary.totals.gross_margin_pct !== null ? 'var(--good-d)' : 'var(--ink-soft)',
-            },
-            {
-              label: 'TỔNG SỐ ĐƠN HÀNG',
-              value: bizSummary.totals.orders !== null ? `${formatNumber(bizSummary.totals.orders, 0)} đơn` : 'KHÔNG ĐỦ DỮ LIỆU',
-              reason: bizSummary.totals.orders === null ? bizSummary.unavailable?.find((u) => u.id === 'orders_total')?.reason_vi || 'Thiếu cột Số đơn hàng' : undefined,
-              tone: bizSummary.totals.orders !== null ? 'var(--ink)' : 'var(--ink-soft)',
-            },
-            {
-              label: 'TỔNG GIÁ VỐN',
-              value: bizSummary.totals.cogs !== null ? `${formatNumber(bizSummary.totals.cogs, 0)} VND` : 'KHÔNG ĐỦ DỮ LIỆU',
-              reason: bizSummary.totals.cogs === null ? bizSummary.unavailable?.find((u) => u.id === 'cogs_total')?.reason_vi || 'Thiếu cột Giá vốn' : undefined,
-              tone: bizSummary.totals.cogs !== null ? 'var(--ink)' : 'var(--ink-soft)',
-            },
-            {
-              label: 'GIÁ TRỊ ĐƠN TB (AOV)',
-              value: bizSummary.totals.aov !== null ? `${formatNumber(bizSummary.totals.aov, 2)} VND` : 'KHÔNG ĐỦ DỮ LIỆU',
-              reason: bizSummary.totals.aov === null ? bizSummary.unavailable?.find((u) => u.id === 'aov')?.reason_vi || 'Thiếu cột Số đơn hàng' : undefined,
-              tone: bizSummary.totals.aov !== null ? 'var(--ink)' : 'var(--ink-soft)',
-            },
-          ].map((kpi) => (
-            <div key={kpi.label} className="px-shadow-sm" style={{ backgroundColor: 'var(--white)', border: '2px solid var(--ink)', padding: '12px 14px' }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ink-soft)' }}>{kpi.label}</div>
-              <div className="font-pixel" style={{ fontSize: kpi.value === 'KHÔNG ĐỦ DỮ LIỆU' ? '14px' : '20px', color: kpi.tone, marginTop: '4px' }}>
-                {kpi.value}
+        {/* Prompt 2B-FIX: Độ tin cậy & Giới hạn dữ liệu do code tính (LUÔN HIỆN Ở ĐẦU KHỐI BÁO CÁO) */}
+        {(() => {
+          const confidence = selectedAnalysis?.confidence || (rawTable ? evaluateCodeConfidence(rawTable, (bizSummary as any)?.role_resolution?.roles || {}, selectedAnalysis?.metrics || {}, (selectedAnalysis as any)?.totalRevenue || 0, (selectedAnalysis as any)?.totalCogs ?? null) : { level: 'HIGH', level_vi: 'CAO', reasons: [] });
+          return (
+            <div data-testid="confidence-section" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink-soft)' }}>ĐỘ TIN CẬY DỮ LIỆU:</span>
+                    <PixelBadge
+                      data-testid="confidence-badge"
+                      variant={
+                        confidence.level === 'HIGH'
+                          ? 'success'
+                          : confidence.level === 'MEDIUM'
+                            ? 'warn'
+                            : 'danger'
+                      }
+                    >
+                      {confidence.level_vi || confidence.level || 'CAO'}
+                    </PixelBadge>
+                  </div>
+                  <div data-testid="confidence-metrics-count" style={{ fontSize: '11px', color: 'var(--ink-soft)' }}>
+                    Độ tin cậy tính trên {activeMetricIds.length} chỉ số đã chọn.
+                  </div>
+                </div>
+                <PixelButton variant="ghost" size="sm" onClick={() => navigate('/trao-doi')}>
+                  ← Đổi lựa chọn chỉ số
+                </PixelButton>
               </div>
-              {kpi.reason && (
-                <div style={{ fontSize: '10px', color: 'var(--ink-soft)', marginTop: '4px', lineHeight: 1.3 }}>
-                  {kpi.reason}
+
+              {confidence.reasons && confidence.reasons.length > 0 && (
+                <div data-testid="confidence-reasons" style={{ backgroundColor: '#fffbeb', border: '1px solid #f59e0b', padding: '8px 12px', fontSize: '12px', color: '#92400e' }}>
+                  <strong>Lý do hạ bậc tin cậy:</strong> {confidence.reasons.join('; ')}
+                </div>
+              )}
+
+              {selectedAnalysis?.dataLimits && selectedAnalysis.dataLimits.length > 0 && (
+                <div data-testid="data-limits" style={{ backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '8px 12px', fontSize: '12px', color: 'var(--ink-soft)' }}>
+                  <strong style={{ color: 'var(--ink)' }}>Giới hạn dữ liệu:</strong>
+                  <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
+                    {selectedAnalysis.dataLimits.map((limit: string, lIdx: number) => (
+                      <li key={lIdx}>{limit}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
-          ))}
-        </div>
+          );
+        })()}
+
+        {/* Prompt 2B: Khối Chỉ số theo danh mục đã chọn (thay thế 6 KPI và 4 biểu đồ cố định) */}
+        {selectedAnalysis && (
+          <div data-testid="selected-metrics-report-block" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 'var(--space-3)' }}>
+              {BUSINESS_METRIC_CATALOG.filter((def) => activeMetricIds.includes(def.id)).map((def) => {
+                const metric = selectedAnalysis.metrics?.[def.id];
+                if (!metric) return null;
+
+                const isFeasible = metric.status === 'tính được';
+
+                if (!isFeasible) {
+                  return (
+                    <div
+                      key={def.id}
+                      data-testid="selected-metric-card"
+                      className="px-shadow-sm"
+                      style={{
+                        backgroundColor: '#f8fafc',
+                        border: '1px dashed var(--ink-soft)',
+                        opacity: 0.75,
+                        padding: '14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--ink-soft)' }}>{metric.name || def.name}</span>
+                        <PixelBadge variant="neutral">BỊ KHÓA</PixelBadge>
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                        Chỉ số bị khóa: {metric.reason}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={def.id}
+                    data-testid="selected-metric-card"
+                    className="px-shadow-sm"
+                    style={{
+                      backgroundColor: 'var(--white)',
+                      border: '2px solid var(--ink)',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>{metric.name || def.name}</span>
+                        {((metric as any)?.isComputed || (selectedAnalysis as any)?.isProfitComputed || (bizSummary as any)?.role_resolution?.roles?.profit?.status === 'suy luận') && (def.id === 'gross_profit' || def.id === 'gross_margin') && (
+                          <PixelBadge variant="info" size="sm">tự tính</PixelBadge>
+                        )}
+                      </div>
+                      <PixelBadge variant="success">TÍNH ĐƯỢC</PixelBadge>
+                    </div>
+                    <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600, lineHeight: 1.4 }}>
+                      {metric.answerText}
+                    </div>
+
+                    {/* Fact events [F#] with readable nguon */}
+                    {metric.events && metric.events.length > 0 && (
+                      <div style={{ fontSize: '11px', color: 'var(--ink-soft)', display: 'flex', flexDirection: 'column', gap: '3px', backgroundColor: 'var(--surface-subtle)', padding: '6px 8px', border: '1px solid var(--border)' }}>
+                        {metric.events.slice(0, 3).map((ev: any) => (
+                          <div key={ev.id} style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--blue)' }}>[{ev.id}]</span>
+                            <span>{ev.label_vi}: <strong>{ev.display}</strong> ({ev.nguon})</span>
+                          </div>
+                        ))}
+                        {metric.events.length > 3 && (
+                          <div style={{ fontSize: '10px', color: 'var(--ink-soft)', fontStyle: 'italic' }}>
+                            +{metric.events.length - 3} sự kiện dữ liệu khác
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Pivot Table if present */}
+                    {metric.pivot && (
+                      metric.pivot.dimension ? (
+                        <div style={{ overflowX: 'auto', maxHeight: '160px', border: '1px solid var(--border)', marginTop: '4px' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)' }}>
+                                {metric.pivot.headers.map((h: string, idx: number) => (
+                                  <th key={idx} style={{ padding: '4px 6px', textAlign: idx === 0 ? 'left' : 'right' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {metric.pivot.rows.map((row: any, rIdx: number) => (
+                                <tr key={rIdx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                  <td style={{ padding: '4px 6px', fontWeight: 600 }}>{row.label}</td>
+                                  {metric.pivot.headers.slice(1).map((h: string, hIdx: number) => {
+                                    let val: any = '—';
+                                    if (h.includes('Doanh thu')) val = row.revenue !== undefined ? `${formatNumber(row.revenue, 0)} VND` : '—';
+                                    else if (h.includes('Tỷ trọng')) val = row.revenue_share_pct !== undefined ? formatPercent(row.revenue_share_pct / 100) : '—';
+                                    else if (h.includes('Số đơn')) val = row.orders !== undefined ? formatNumber(row.orders, 0) : '—';
+                                    else if (h.includes('Biên')) val = row.margin_pct !== undefined ? formatPercent(row.margin_pct / 100) : '—';
+                                    else if (h.includes('Lợi nhuận')) val = row.profit !== undefined ? `${formatNumber(row.profit, 0)} VND` : '—';
+                                    return (
+                                      <td key={hIdx} style={{ padding: '4px 6px', textAlign: 'right' }}>
+                                        {val}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : metric.pivot.channels && metric.pivot.products ? (
+                        <div style={{ overflowX: 'auto', maxHeight: '180px', border: '1px solid var(--border)', marginTop: '4px' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)' }}>
+                                <th style={{ padding: '4px 6px', textAlign: 'left' }}>Kênh \ SP</th>
+                                {metric.pivot.products.map((p: string, pIdx: number) => (
+                                  <th key={pIdx} style={{ padding: '4px 6px', textAlign: 'right' }}>{p}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {metric.pivot.channels.map((ch: string) => (
+                                <tr key={ch} style={{ borderBottom: '1px solid var(--border)' }}>
+                                  <td style={{ padding: '4px 6px', fontWeight: 600 }}>{ch}</td>
+                                  {metric.pivot.products.map((pr: string) => {
+                                    const cell = metric.pivot.cells?.find((c: any) => c.channel === ch && c.product === pr);
+                                    return (
+                                      <td key={pr} style={{ padding: '4px 6px', textAlign: 'right' }}>
+                                        {cell ? formatPercent(cell.margin_pct / 100) : '—'}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : null
+                    )}
+
+                    {/* Chart if present */}
+                    {metric.chart && (
+                      <div
+                        id={`rep_${metric.chart.id}`}
+                        style={{
+                          marginTop: '4px',
+                          outline: highlightedBizChartId === metric.chart.id ? '2px solid var(--accent)' : 'none',
+                          transition: 'outline 0.3s ease',
+                        }}
+                      >
+                        <PixelChart spec={metric.chart} height={180} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Đơn vị gốc của file (Prompt 1C-2a Phần F4) */}
+        {originalUnit !== 'đồng' && (
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--ink-soft)',
+              fontFamily: 'var(--font-content)',
+              marginTop: '-16px',
+              marginBottom: 'var(--space-2)',
+              fontStyle: 'italic',
+            }}
+          >
+            Đơn vị gốc của file: {originalUnit} ({unitSourceText}); mọi số đã quy về đồng.
+          </div>
+        )}
 
         {/* Verified AI / Template Business Insights with Clickable Evidence */}
-        <BusinessInsightsPanel
-          loading={bizInsightsLoading}
-          factsTable={bizFactsTable}
-          report={bizInsightsReport}
-          onRegenerate={() => {
-            if (!session) return;
-            setBizInsightsLoading(true);
-            generateBusinessInsights(session.id, { forceRefresh: true })
-              .then((b) => {
-                setBizFactsTable(b.factsTable);
-                setBizInsightsReport(b.report);
-                const rep = ArtifactStore.get<ReportArtifact>(session.id, 'report');
-                if (rep) setReport(rep);
-              })
-              .finally(() => setBizInsightsLoading(false));
-          }}
-          onSelectChartId={(cid) => {
-            setHighlightedBizChartId(cid);
-            document.getElementById(`rep_${cid}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }}
-        />
+        {(() => {
+          let displayedReport = bizInsightsReport;
+          if (displayedReport && activeMetricIds && activeMetricIds.length > 0 && activeMetricIds.length < 13) {
+            const hasChannel = activeMetricIds.some((id) => id.includes('channel'));
+            const hasProduct = activeMetricIds.some((id) => id.includes('product'));
+            const hasRegion = activeMetricIds.some((id) => id.includes('region'));
+            const hasMonth = activeMetricIds.some((id) => id.includes('month') || id.includes('growth'));
+            const hasMargin = activeMetricIds.some((id) => id.includes('profit') || id.includes('margin'));
 
-        {/* Charts */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: 'var(--space-4)' }}>
-          {analysis.charts.map((chart) => (
-            <div
-              key={chart.id}
-              id={`rep_${chart.id}`}
-              style={{
-                outline: highlightedBizChartId === chart.id ? '3px solid var(--accent)' : 'none',
-                outlineOffset: '2px',
-              }}
-            >
-              <PixelChart spec={chart} height={290} />
+            let filteredByMetric = displayedReport.by_metric;
+            if (filteredByMetric) {
+              filteredByMetric = Object.fromEntries(
+                Object.entries(filteredByMetric).filter(([mId]) => activeMetricIds.includes(mId))
+              );
+            }
+
+            displayedReport = {
+              ...displayedReport,
+              by_metric: filteredByMetric || displayedReport.by_metric,
+              insights: (displayedReport.insights || []).filter((item) => {
+                if (!hasChannel && /kênh/i.test(item.title + ' ' + item.statement)) return false;
+                if (!hasProduct && /sản phẩm/i.test(item.title + ' ' + item.statement)) return false;
+                if (!hasRegion && /khu vực/i.test(item.title + ' ' + item.statement)) return false;
+                if (!hasMonth && /tháng/i.test(item.title + ' ' + item.statement)) return false;
+                if (!hasMargin && /biên|lợi nhuận/i.test(item.title + ' ' + item.statement)) return false;
+                return true;
+              }),
+              recommendations: (displayedReport.recommendations || []).filter((rec) => {
+                if (!hasChannel && /kênh/i.test(rec.action + ' ' + rec.rationale)) return false;
+                if (!hasProduct && /sản phẩm/i.test(rec.action + ' ' + rec.rationale)) return false;
+                if (!hasRegion && /khu vực/i.test(rec.action + ' ' + rec.rationale)) return false;
+                if (!hasMonth && /tháng/i.test(rec.action + ' ' + rec.rationale)) return false;
+                if (!hasMargin && /biên|giá vốn|chi phí|lợi nhuận/i.test(rec.action + ' ' + rec.rationale)) return false;
+                return true;
+              }),
+              limitations: (displayedReport.limitations || []).filter((lim) => {
+                if (!hasMargin && /biên|giá vốn|lợi nhuận/i.test(lim)) return false;
+                return true;
+              }),
+            };
+          }
+
+          return (
+            <div data-testid="business-insights-panel">
+              <BusinessInsightsPanel
+                loading={bizInsightsLoading}
+                factsTable={bizFactsTable}
+                report={displayedReport}
+                onRegenerate={() => {
+                  if (!session) return;
+                  setBizInsightsLoading(true);
+                  generateBusinessInsights(session.id, { forceRefresh: true })
+                    .then((b) => {
+                      setBizFactsTable(b.factsTable);
+                      setBizInsightsReport(b.report);
+                      const rep = ArtifactStore.get<ReportArtifact>(session.id, 'report');
+                      if (rep) setReport(rep);
+                    })
+                    .finally(() => setBizInsightsLoading(false));
+                }}
+                onSelectChartId={(cid) => {
+                  setHighlightedBizChartId(cid);
+                  document.getElementById(`rep_${cid}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+              />
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         {/* Human Gate 2 Approval & Rejection Feedback Loop */}
         <PixelPanel title="CỔNG DUYỆT 2 — PHÊ DUYỆT BÁO CÁO HOẶC GỬI GÓP Ý VIẾT LẠI">
@@ -1125,22 +1355,21 @@ export const ReportPage: React.FC = () => {
                       {m.status === 'insufficient_data'
                         ? 'Chưa đủ dữ liệu'
                         : m.value !== null && m.value !== undefined
-                        ? m.unit === 'ratio'
-                          ? formatPercent(m.value)
-                          : m.unit === 'currency'
-                          ? `${formatNumber(m.value)} đ`
-                          : m.unit === 'count'
-                          ? formatNumber(m.value, 0)
-                          : formatNumber(m.value, 2)
-                        : m.text || '-'}
+                          ? m.unit === 'ratio'
+                            ? formatPercent(m.value)
+                            : m.unit === 'currency'
+                              ? `${formatNumber(m.value)} đ`
+                              : m.unit === 'count'
+                                ? formatNumber(m.value, 0)
+                                : formatNumber(m.value, 2)
+                          : m.text || '-'}
                     </td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--chart-text)' }}>
                       {m.delta?.value !== null && m.delta?.value !== undefined
-                        ? `${m.delta.value > 0 ? '+' : ''}${
-                            m.unit === 'ratio'
-                              ? formatPercent(m.delta.value)
-                              : formatNumber(m.delta.value)
-                          } (${m.delta.label_vi})`
+                        ? `${m.delta.value > 0 ? '+' : ''}${m.unit === 'ratio'
+                          ? formatPercent(m.delta.value)
+                          : formatNumber(m.delta.value)
+                        } (${m.delta.label_vi})`
                         : m.text || '-'}
                     </td>
                     <td style={{ padding: '8px 12px', color: 'var(--chart-text)', fontSize: '12px' }}>
@@ -1181,19 +1410,20 @@ export const ReportPage: React.FC = () => {
             report && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <PixelBadge
+                  data-testid="ai-mode-badge"
                   variant={
                     report.narrative.mode === 'ai'
                       ? 'info'
                       : report.narrative.mode === 'mixed'
-                      ? 'warn'
-                      : 'neutral'
+                        ? 'warn'
+                        : 'neutral'
                   }
                 >
                   {report.narrative.mode === 'ai'
                     ? '100% Trí tuệ Nhân tạo'
                     : report.narrative.mode === 'mixed'
-                    ? 'Hỗn hợp (AI + Mẫu câu)'
-                    : 'Mẫu câu (không dùng AI)'}
+                      ? 'Hỗn hợp (AI + Mẫu câu)'
+                      : 'Mẫu câu (không dùng AI)'}
                 </PixelBadge>
               </div>
             )

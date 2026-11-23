@@ -15,6 +15,7 @@ import type { BusinessColumn, BusinessTable, ColumnRole } from '../businessTable
 import type { CleanProposal } from '../schemas';
 import { sha256Hex } from '../hash';
 import { resolveBusinessRoles, type BusinessResolvedRoles } from '../metrics/businessRoles';
+import { applyManualBusinessRoles } from '../validator/business';
 
 export interface BusinessCleanDecisions {
   remove_blank_rows?: boolean;
@@ -65,6 +66,8 @@ export interface BusinessProfile {
   total_rows: number;
   total_columns: number;
   skipped_blank_rows: number;
+  skipped_total_rows?: number;
+  skipped_total_row_numbers?: number[];
   trimmed_cells_count: number;
   exact_duplicates_count: number;
   blank_dimension_cells_count: number;
@@ -125,6 +128,7 @@ export interface BusinessCleanPipelineResult {
     gross_margin_pct: number | null;
     aov: number | null;
   };
+  rawTable?: BusinessTable;
   resolvedRoles?: BusinessResolvedRoles;
   diffRows: Array<{
     row_id: string;
@@ -175,6 +179,7 @@ export function cloneBusinessTable(table: BusinessTable): BusinessTable {
           key: col.key,
           label: col.label,
           values: [...col.values],
+          userChosenRole: col.userChosenRole,
         };
       case 'time':
         return {
@@ -184,6 +189,7 @@ export function cloneBusinessTable(table: BusinessTable): BusinessTable {
           granularity: col.granularity,
           values: new Int32Array(col.values),
           raw_labels: col.raw_labels ? [...col.raw_labels] : undefined,
+          userChosenRole: col.userChosenRole,
         };
       case 'dimension':
         return {
@@ -193,6 +199,7 @@ export function cloneBusinessTable(table: BusinessTable): BusinessTable {
           categories: [...col.categories],
           codes: new Uint16Array(col.codes),
           raw_labels: col.raw_labels ? [...col.raw_labels] : undefined,
+          userChosenRole: col.userChosenRole,
         };
       case 'measure':
         return {
@@ -201,7 +208,22 @@ export function cloneBusinessTable(table: BusinessTable): BusinessTable {
           label: col.label,
           unit: col.unit,
           values: new Float64Array(col.values),
+          raw_values: col.raw_values ? new Float64Array(col.raw_values) : undefined,
+          raw_strings: col.raw_strings ? [...col.raw_strings] : undefined,
+          detectedUnit: col.detectedUnit,
+          multiplier: col.multiplier,
+          userUnit: col.userUnit,
+          unitSource: col.unitSource,
+          unit_suspicious: col.unit_suspicious,
+          suspiciousReason: col.suspiciousReason,
+          ambiguous_separator: col.ambiguous_separator,
+          sampleAmbiguous: col.sampleAmbiguous,
+          userDecimalConvention: col.userDecimalConvention,
+          initialDecimalConvention: col.initialDecimalConvention,
+          userChosenRole: col.userChosenRole,
         };
+      default:
+        return { ...col } as BusinessColumn;
     }
   });
 
@@ -211,6 +233,14 @@ export function cloneBusinessTable(table: BusinessTable): BusinessTable {
     source_row,
     columns,
     skipped_blank_rows: table.skipped_blank_rows,
+    skipped_total_rows: table.skipped_total_rows,
+    skipped_total_row_numbers: table.skipped_total_row_numbers ? [...table.skipped_total_row_numbers] : undefined,
+    available_sheets: table.available_sheets ? [...table.available_sheets] : undefined,
+    selected_sheet: table.selected_sheet,
+    raw_bytes: table.raw_bytes,
+    filename: table.filename,
+    manual_column_roles: table.manual_column_roles ? { ...table.manual_column_roles } : undefined,
+    cogs_exceeds_revenue_warning: table.cogs_exceeds_revenue_warning,
   };
 }
 
@@ -276,11 +306,16 @@ export function removeBlankRows(table: BusinessTable): {
       }
       case 'measure': {
         const vals = new Float64Array(newN);
+        const rawVals = col.raw_values ? new Float64Array(newN) : undefined;
+        const rawStrings = col.raw_strings ? keepIndices.map((idx) => col.raw_strings![idx]) : undefined;
         for (let k = 0; k < newN; k++) {
           vals[k] = col.values[keepIndices[k]];
+          if (rawVals && col.raw_values) rawVals[k] = col.raw_values[keepIndices[k]];
         }
-        return { ...col, values: vals };
+        return { ...col, values: vals, raw_values: rawVals, raw_strings: rawStrings };
       }
+      default:
+        return { ...col } as BusinessColumn;
     }
   });
 
@@ -291,6 +326,14 @@ export function removeBlankRows(table: BusinessTable): {
       source_row: newSourceRow,
       columns: newColumns,
       skipped_blank_rows: table.skipped_blank_rows,
+      skipped_total_rows: table.skipped_total_rows,
+      skipped_total_row_numbers: table.skipped_total_row_numbers ? [...table.skipped_total_row_numbers] : undefined,
+      available_sheets: table.available_sheets ? [...table.available_sheets] : undefined,
+      selected_sheet: table.selected_sheet,
+      raw_bytes: table.raw_bytes,
+      filename: table.filename,
+      manual_column_roles: table.manual_column_roles ? { ...table.manual_column_roles } : undefined,
+      cogs_exceeds_revenue_warning: table.cogs_exceeds_revenue_warning,
     },
     dropped_rows: dropped_indices.length,
     dropped_indices,
@@ -434,11 +477,16 @@ export function dropExactDuplicates(table: BusinessTable): {
       }
       case 'measure': {
         const vals = new Float64Array(newN);
+        const rawVals = col.raw_values ? new Float64Array(newN) : undefined;
+        const rawStrings = col.raw_strings ? keepIndices.map((idx) => col.raw_strings![idx]) : undefined;
         for (let k = 0; k < newN; k++) {
           vals[k] = col.values[keepIndices[k]];
+          if (rawVals && col.raw_values) rawVals[k] = col.raw_values[keepIndices[k]];
         }
-        return { ...col, values: vals };
+        return { ...col, values: vals, raw_values: rawVals, raw_strings: rawStrings };
       }
+      default:
+        return { ...col } as BusinessColumn;
     }
   });
 
@@ -449,6 +497,14 @@ export function dropExactDuplicates(table: BusinessTable): {
       source_row: newSourceRow,
       columns: newColumns,
       skipped_blank_rows: table.skipped_blank_rows,
+      skipped_total_rows: table.skipped_total_rows,
+      skipped_total_row_numbers: table.skipped_total_row_numbers ? [...table.skipped_total_row_numbers] : undefined,
+      available_sheets: table.available_sheets ? [...table.available_sheets] : undefined,
+      selected_sheet: table.selected_sheet,
+      raw_bytes: table.raw_bytes,
+      filename: table.filename,
+      manual_column_roles: table.manual_column_roles ? { ...table.manual_column_roles } : undefined,
+      cogs_exceeds_revenue_warning: table.cogs_exceeds_revenue_warning,
     },
     dropped_rows: dropped_indices.length,
     dropped_indices,
@@ -561,11 +617,16 @@ export function sortNatural(table: BusinessTable): BusinessTable {
       }
       case 'measure': {
         const vals = new Float64Array(table.n);
+        const rawVals = col.raw_values ? new Float64Array(table.n) : undefined;
+        const rawStrings = col.raw_strings ? indices.map((idx) => col.raw_strings![idx]) : undefined;
         for (let k = 0; k < table.n; k++) {
           vals[k] = col.values[indices[k]];
+          if (rawVals && col.raw_values) rawVals[k] = col.raw_values[indices[k]];
         }
-        return { ...col, values: vals };
+        return { ...col, values: vals, raw_values: rawVals, raw_strings: rawStrings };
       }
+      default:
+        return { ...col } as BusinessColumn;
     }
   });
 
@@ -575,6 +636,14 @@ export function sortNatural(table: BusinessTable): BusinessTable {
     source_row: newSourceRow,
     columns: newColumns,
     skipped_blank_rows: table.skipped_blank_rows,
+    skipped_total_rows: table.skipped_total_rows,
+    skipped_total_row_numbers: table.skipped_total_row_numbers ? [...table.skipped_total_row_numbers] : undefined,
+    available_sheets: table.available_sheets ? [...table.available_sheets] : undefined,
+    selected_sheet: table.selected_sheet,
+    raw_bytes: table.raw_bytes,
+    filename: table.filename,
+    manual_column_roles: table.manual_column_roles ? { ...table.manual_column_roles } : undefined,
+    cogs_exceeds_revenue_warning: table.cogs_exceeds_revenue_warning,
   };
 }
 
@@ -589,7 +658,7 @@ export function calculateBusinessAggregates(
   breakdown: BusinessProfile['breakdown'];
   resolvedRoles: BusinessResolvedRoles;
 } {
-  const roles = resolvedRoles || resolveBusinessRoles(table);
+  const roles = resolvedRoles || applyManualBusinessRoles(resolveBusinessRoles(table), table);
 
   const hasRevenue =
     (roles.revenue.status === 'tìm thấy' || roles.revenue.status === 'suy luận') &&
@@ -831,16 +900,20 @@ export function calculateBusinessProfile(table: BusinessTable): BusinessProfile 
     }
   }
 
-  // Skipped blank rows from parser / file
+  // Skipped blank rows and total rows from parser / file
   const skipped_blank_rows = table.skipped_blank_rows ?? 0;
+  const skipped_total_rows = table.skipped_total_rows ?? 0;
+  const skipped_total_row_numbers = table.skipped_total_row_numbers ?? [];
 
   const { aggregates, breakdown } = calculateBusinessAggregates(table);
 
   return {
     kind: 'business',
-    total_rows: table.n + skipped_blank_rows,
+    total_rows: table.n + skipped_blank_rows + skipped_total_rows,
     total_columns: table.columns.length,
     skipped_blank_rows,
+    skipped_total_rows,
+    skipped_total_row_numbers,
     trimmed_cells_count,
     exact_duplicates_count,
     blank_dimension_cells_count,
@@ -955,8 +1028,10 @@ export function runBusinessCleanPipeline(
   table: BusinessTable,
   decisions: Record<string, boolean> = {}
 ): BusinessCleanPipelineResult {
-  const resolvedRoles = resolveBusinessRoles(table);
+  let resolvedRoles = resolveBusinessRoles(table);
+  resolvedRoles = applyManualBusinessRoles(resolvedRoles, table);
   const initialStats = calculateBusinessAggregates(table, resolvedRoles).aggregates;
+  const rawTable = cloneBusinessTable(table);
 
   let current = cloneBusinessTable(table);
   const diffRows: BusinessCleanPipelineResult['diffRows'] = [];
@@ -974,26 +1049,31 @@ export function runBusinessCleanPipeline(
   if (decisions['trim_whitespace'] !== false && decisions['prop_trim_whitespace'] !== false) {
     const res = trimWhitespace(current);
     current = res.table;
+    const idCol = current.columns.find((c) => c.role === 'id') as { role: 'id'; values: string[] } | undefined;
     for (const c of res.changed_cells) {
+      const rowId = idCol && idCol.values[c.row] ? idCol.values[c.row] : `Row ${c.row + 1}`;
+      const origRow = current.source_row ? current.source_row[c.row] : c.row + 1;
       diffRows.push({
-        row_id: `Row ${c.row + 1}`,
+        row_id: rowId,
         status: 'trimmed',
         details_vi: `Cột ${c.column}: Chuẩn hóa khoảng trắng từ "${c.before}" → "${c.after}"`,
-        original_row: c.row + 1,
+        original_row: origRow,
       });
     }
   }
 
   // 3. drop_exact_duplicates
   if (decisions['drop_exact_duplicates'] !== false && decisions['prop_drop_exact_duplicates'] !== false) {
+    const prevSourceRow = current.source_row;
     const res = dropExactDuplicates(current);
     current = res.table;
     for (let k = 0; k < res.dropped_ids.length; k++) {
+      const origRow = prevSourceRow ? prevSourceRow[res.dropped_indices[k]] : res.dropped_indices[k] + 1;
       diffRows.push({
         row_id: res.dropped_ids[k],
         status: 'duplicate_dropped',
-        details_vi: `Loại bỏ dòng trùng lặp mã ${res.dropped_ids[k]} (dòng gốc ${res.dropped_indices[k] + 1})`,
-        original_row: res.dropped_indices[k] + 1,
+        details_vi: `Loại bỏ dòng trùng lặp mã ${res.dropped_ids[k]} (dòng gốc ${origRow})`,
+        original_row: origRow,
       });
     }
   }
@@ -1003,11 +1083,12 @@ export function runBusinessCleanPipeline(
     const res = fillBlankDimensionLabel(current, 'Không xác định');
     current = res.table;
     for (const c of res.changed_cells) {
+      const origRow = current.source_row ? current.source_row[c.row] : c.row + 1;
       diffRows.push({
         row_id: c.original_id,
         status: 'blank_filled',
         details_vi: `Cột ${c.column}: Điền nhãn khuyết thành "Không xác định" (mã ${c.original_id})`,
-        original_row: c.row + 1,
+        original_row: origRow,
       });
     }
   }
@@ -1040,6 +1121,7 @@ export function runBusinessCleanPipeline(
     totalBeforeRows,
     totalAfterRows: current.n,
     droppedCount: totalBeforeRows - current.n,
+    rawTable,
     statsBefore: initialStats,
     statsAfter: finalStats,
     resolvedRoles,

@@ -7,6 +7,9 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { preview } from 'vite';
 
+process.env.GEMINI_API_KEY_1 = ' ';
+process.env.GEMINI_API_KEY_2 = ' ';
+
 const execFileAsync = promisify(execFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -112,7 +115,7 @@ async function runE2E() {
         '--virtual-time-budget=2500',
         `--screenshot=${outPath}`,
         url,
-      ]);
+      ], { maxBuffer: 10 * 1024 * 1024, timeout: 30000 });
 
       if (fs.existsSync(outPath)) {
         const sz = fs.statSync(outPath).size;

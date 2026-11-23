@@ -24,6 +24,9 @@ describe('UploadPage Component', () => {
     expect(screen.getByText('KÉO THẢ TỆP EXCEL HOẶC CSV VÀO ĐÂY')).toBeDefined();
     expect(screen.getByText('YÊU CẦU FILE')).toBeDefined();
 
+    // Switch to Trading tab to verify trading requirements
+    fireEvent.click(screen.getByText('Dữ liệu giao dịch'));
+
     // 7 Required columns listed
     expect(screen.getByText('7 Cột bắt buộc:')).toBeDefined();
     expect(screen.getByText('Ngày')).toBeDefined();
@@ -49,6 +52,7 @@ describe('UploadPage Component', () => {
       </BrowserRouter>
     );
 
+    fireEvent.click(screen.getByText('Dữ liệu giao dịch'));
     const dropzone = screen.getByRole('button', { name: /Khu vực kéo thả tệp giao dịch/i });
     expect(dropzone).toBeDefined();
     expect(dropzone.getAttribute('tabindex')).toBe('0');
@@ -92,6 +96,9 @@ describe('UploadPage Component', () => {
       </BrowserRouter>
     );
 
+    // Switch to Trading tab where question box is active
+    fireEvent.click(screen.getByText('Dữ liệu giao dịch'));
+
     // Frame 1 exists
     expect(screen.getByText('1. BỐI CẢNH VÀ YÊU CẦU PHÂN TÍCH')).toBeDefined();
     expect(screen.getByText('2. NẠP DỮ LIỆU GIAO DỊCH HOẶC BẢNG KINH DOANH')).toBeDefined();
@@ -134,6 +141,9 @@ describe('UploadPage Component', () => {
         <UploadPage />
       </BrowserRouter>
     );
+
+    // Switch to Trading requirements tab to activate question section
+    fireEvent.click(screen.getByText('Dữ liệu giao dịch'));
 
     // Switch to Giao dịch tab
     const tradingTab = screen.getByRole('tab', { name: 'Giao dịch' });

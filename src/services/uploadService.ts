@@ -168,8 +168,8 @@ export async function runValidationWorker(
         reject(err);
       };
 
-      // Pass ArrayBuffer as transferable for zero-copy memory handover
-      worker.postMessage({ filename, bytes, limits }, [bytes.buffer]);
+      // Do not transfer bytes.buffer so bytes remains valid on the main thread for ArtifactStore and sheet switching
+      worker.postMessage({ filename, bytes, limits });
     });
   }
 
@@ -225,18 +225,6 @@ export async function runUpload(
     ...options?.limits,
   };
 
-  // Immediate Context Requirement Check (Prompt D3)
-  const sessionRecord = sessionStore.getRecord(sessionId);
-  const context = sessionRecord?.meta?.business_context;
-  if (!context || !context.analysis_questions || context.analysis_questions.length === 0) {
-    throw new AppError(
-      ERROR_CODES.CONTEXT_REQUIRED,
-      'Bạn cần nhập ít nhất một yêu cầu phân tích để Agent biết cần trả lời điều gì.',
-      {},
-      400
-    );
-  }
-
   // Synchronous precheck first
   const pre = precheckFile([file], limits);
   if (!pre.ok && pre.error) {
@@ -265,12 +253,29 @@ export async function runUpload(
   );
 
   if (outcome.ok) {
+    // Immediate Context Requirement Check for Trading mode (Prompt D3 & 2A-2: only trading requires question)
+    if (outcome.meta.kind === 'trading') {
+      const sessionRecord = sessionStore.getRecord(sessionId);
+      const context = sessionRecord?.meta?.business_context;
+      if (!context || !context.analysis_questions || context.analysis_questions.length === 0) {
+        throw new AppError(
+          ERROR_CODES.CONTEXT_REQUIRED,
+          'Bạn cần nhập ít nhất một yêu cầu phân tích để Agent biết cần trả lời điều gì.',
+          {},
+          400
+        );
+      }
+    }
     // 1. Commit raw dataset or business table to ArtifactStore
     if (outcome.businessTable) {
+      outcome.businessTable.raw_bytes = bytes;
+      outcome.businessTable.filename = file.name;
       ArtifactStore.put(sessionId, 'raw', outcome.businessTable);
     } else if (outcome.dataset) {
       ArtifactStore.put(sessionId, 'raw', outcome.dataset);
     }
+    ArtifactStore.put(sessionId, 'raw_bytes', bytes);
+    ArtifactStore.put(sessionId, 'raw_filename', file.name);
 
     // 2. Update session record meta
     const record = sessionStore.getRecord(sessionId);

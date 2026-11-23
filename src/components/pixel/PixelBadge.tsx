@@ -4,7 +4,7 @@ import type { IconName } from './icons';
 
 export type BadgeVariant = 'success' | 'warn' | 'danger' | 'info' | 'neutral';
 
-export interface PixelBadgeProps {
+export interface PixelBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
   icon?: IconName;
   size?: 'sm' | 'md';
@@ -22,6 +22,7 @@ export const PixelBadge: React.FC<PixelBadgeProps> = ({
   className = '',
   style = {},
   title,
+  ...rest
 }) => {
   const getStyle = () => {
     switch (variant) {
@@ -43,6 +44,7 @@ export const PixelBadge: React.FC<PixelBadgeProps> = ({
 
   return (
     <span
+      {...rest}
       title={title}
       className={`pixel-badge font-pixel ${className}`}
       style={{

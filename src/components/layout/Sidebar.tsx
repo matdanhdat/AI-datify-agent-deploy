@@ -49,6 +49,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isPageUnlocked,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const isBusiness = session?.dataset
+    ? session.dataset.kind === 'business'
+    : Boolean(session?.business_context);
+
+  const menuItems = React.useMemo(() => {
+    if (!isBusiness) return MENU_ITEMS;
+    const items = [...MENU_ITEMS];
+    const analyzeIdx = items.findIndex((i) => i.key === 'analyze');
+    if (analyzeIdx !== -1) {
+      items.splice(analyzeIdx, 0, {
+        path: '/trao-doi',
+        key: 'exchange',
+        label: 'Trao đổi',
+        icon: 'checklist',
+      });
+    }
+    return items;
+  }, [isBusiness]);
 
   return (
     <aside
@@ -147,7 +165,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Menu */}
         <nav style={{ padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {MENU_ITEMS.map((item) => {
+          {menuItems.map((item) => {
             const unlocked = isPageUnlocked(item.key);
             const showDot = item.badgeCondition ? item.badgeCondition(session) : false;
 

@@ -269,17 +269,65 @@ export const BusinessFactInputSchema = z.object({
   unit: z.string().max(30),
 });
 
+export const InsightFindingInputSchema = z.object({
+  rule_id: z.string().max(60),
+  title: z.string().max(200),
+  evidence: z.string().max(500),
+  meaning: z.string().max(500),
+  opportunity_risk: z.string().max(500),
+  action: z.string().max(500),
+  kpi_metric_id: z.string().max(60),
+  check_after: z.enum(['1 tuần', '2 tuần', '4 tuần', '8 tuần', '1 quý']),
+  source_refs: z.array(z.string().max(16)).min(1),
+});
+export type InsightFindingInput = z.infer<typeof InsightFindingInputSchema>;
+
+export const InsightFindingOutputSchema = z.object({
+  rule_id: z.string().max(60),
+  title: z.string().max(200),
+  evidence: z.string().max(500),
+  meaning: z.string().max(500),
+  opportunity_risk: z.string().max(500),
+  action: z.string().max(500),
+  kpi_metric_id: z.string().max(60),
+  check_after: z.enum(['1 tuần', '2 tuần', '4 tuần', '8 tuần', '1 quý']),
+  source_refs: z.array(z.string().max(16)).min(1),
+});
+export type InsightFindingOutput = z.infer<typeof InsightFindingOutputSchema>;
+
 export const BusinessInsightsInputSchema = z.object({
   facts_hash: z.string().max(80),
   period: z.string().max(100),
-  facts: z.array(BusinessFactInputSchema).min(1).max(30),
+  facts: z.array(BusinessFactInputSchema).min(1).max(50),
+  findings: z.array(InsightFindingInputSchema).max(6).optional().default([]),
   questions: z.array(z.string().max(220)).max(8).optional().default([]),
   context_note: z.string().max(600).optional(),
   reviewer_feedback: z.string().max(400).optional(),
+  // Prompt 3B Part 1: Two-tier flags & limits
+  has_margin: z.boolean().optional().default(false),
+  has_orders: z.boolean().optional().default(false),
+  has_product: z.boolean().optional().default(false),
+  has_channel: z.boolean().optional().default(false),
+  has_region: z.boolean().optional().default(false),
+  has_time: z.boolean().optional().default(false),
+  confidence_level: z.string().optional().default('CAO'),
+  data_limits: z.array(z.string()).optional().default([]),
 });
 export type BusinessInsightsInput = z.infer<typeof BusinessInsightsInputSchema>;
 
+export const ByMetricSentenceSchema = z.object({
+  text: z.string().max(350),
+  refs: z.array(z.string().max(16)).min(1),
+});
+export type ByMetricSentence = z.infer<typeof ByMetricSentenceSchema>;
+
 export const BusinessInsightsOutputSchema = z.object({
+  findings: z.array(InsightFindingOutputSchema).max(6).optional().default([]),
+  key_takeaways: z.array(z.string().max(350)).max(3).optional().default([]),
+  summary: z.array(z.string().max(350)).max(3).optional().default([]),
+  by_metric: z.record(z.string(), z.array(ByMetricSentenceSchema).max(2)).optional().default({}),
+  followups: z.array(z.string().max(200)).max(2).optional().default([]),
+  // Backward compatibility fields for old sessions
   insights: z
     .array(
       z.object({
@@ -289,7 +337,8 @@ export const BusinessInsightsOutputSchema = z.object({
         confidence: z.enum(['cao', 'vừa', 'thấp']).default('vừa'),
       })
     )
-    .max(5),
+    .max(5)
+    .optional(),
   recommendations: z
     .array(
       z.object({
@@ -300,7 +349,42 @@ export const BusinessInsightsOutputSchema = z.object({
         risk: z.string().max(280).optional().default(''),
       })
     )
-    .max(5),
-  limitations: z.array(z.string().max(280)).max(5).optional().default([]),
+    .max(5)
+    .optional(),
+  limitations: z.array(z.string().max(280)).max(5).optional(),
 });
 export type BusinessInsightsOutput = z.infer<typeof BusinessInsightsOutputSchema>;
+
+// ============================================================================
+// 7. Question To Metrics Task (Prompt 5B: User Query to Catalog Metrics)
+// ============================================================================
+export const QuestionToMetricsInputSchema = z.object({
+  questions: z.array(z.string()).max(3),
+  catalog_metrics: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      feasible: z.boolean(),
+      reason: z.string().optional(),
+    })
+  ),
+});
+export type QuestionToMetricsInput = z.infer<typeof QuestionToMetricsInputSchema>;
+
+export const QuestionToMetricsOutputSchema = z.object({
+  matches: z.array(
+    z.object({
+      question_index: z.number(),
+      metric_ids: z.array(z.string()),
+      reason: z.string(),
+    })
+  ),
+  unanswerable: z.array(
+    z.object({
+      question_index: z.number(),
+      reason: z.string(),
+    })
+  ),
+});
+export type QuestionToMetricsOutput = z.infer<typeof QuestionToMetricsOutputSchema>;
+

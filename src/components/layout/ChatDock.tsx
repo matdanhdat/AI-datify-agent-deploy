@@ -308,12 +308,17 @@ export const ChatDock: React.FC<ChatDockProps> = ({
     }
   };
 
+  // Prompt 1C-2a-UI Section D: Elevate chat button when fixed bottom bar exists (CleanPage)
+  // Bottom bar height is ~56px. Elevating to 84px ensures at least 28px (> 16px) clearance above bottom bar.
+  const hasBottomBar = location.pathname.startsWith('/lam-sach') || location.pathname.startsWith('/clean');
+  const chatBottom = hasBottomBar ? '84px' : '24px';
+
   return (
     <div
       className="no-print"
       style={{
         position: 'fixed',
-        bottom: '24px',
+        bottom: chatBottom,
         right: '24px',
         zIndex: 'var(--z-launcher, 9999)' as any,
         display: 'flex',

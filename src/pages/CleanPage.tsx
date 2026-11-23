@@ -18,11 +18,15 @@ import { formatAiError } from '../core/aiErrors';
 import type { CleanProposal, Profile } from '../core/schemas';
 import type { CleanPipelineResult } from '../core/cleaner/pipeline';
 import { resolveBusinessRoles, type RoleResolutionStatus } from '../core/metrics/businessRoles';
+import { validateBytes, DEFAULT_LIMITS } from '../core/validator';
+import { applyManualBusinessRoles } from '../core/validator/business';
 import { BusinessContextPanel } from '../components/layout/BusinessContextPanel';
+import { FileReadConfirmationPanel } from '../components/clean/FileReadConfirmationPanel';
+import { calculateBusinessProfile, generateBusinessProposals } from '../core/cleaner/businessCleaner';
 import { PixelBadge, type BadgeVariant } from '../components/pixel/PixelBadge';
 import { PixelButton } from '../components/pixel/PixelButton';
 import { PixelIcon } from '../components/pixel/PixelIcon';
-import { PixelModal, ConfirmDialog } from '../components/pixel/PixelModal';
+import { PixelModal } from '../components/pixel/PixelModal';
 import { PixelPanel } from '../components/pixel/PixelPanel';
 import { PixelProgress, PixelTabs } from '../components/pixel/PixelProgressAndTabs';
 import { PixelSwitch } from '../components/pixel/PixelFormControls';
@@ -41,6 +45,53 @@ export function renderCleanMetric(
     return 'Không đáng tin';
   }
   return 'Không có cột này';
+}
+
+export interface ApprovalLockParams {
+  isBusiness: boolean;
+  approving: boolean;
+  reviewerName: string;
+  diffResult: CleanPipelineResult | BusinessCleanPipelineResult | null;
+  resolvedRoles: any;
+  hasRevenueApproved: boolean;
+  isRevenueInferred: boolean;
+  inferredUnconfirmedRoles: Array<{ key: string; label: string; colName: string }>;
+  isReadConfirmed: boolean;
+  unconfirmedCount: number;
+}
+
+export function getApprovalLockReasons(params: ApprovalLockParams): string[] {
+  if (params.approving) return ['Đang phê duyệt...'];
+  const reasons: string[] = [];
+
+  if (params.isBusiness) {
+    if (params.isRevenueInferred) {
+      const guessedColName = params.resolvedRoles?.revenue?.col?.label || 'Doanh thu';
+      reasons.push(`Doanh thu: app mới đoán cột "${guessedColName}", bạn cần xác nhận`);
+    } else if (!params.hasRevenueApproved) {
+      reasons.push('Cần chỉ định cột Doanh thu trước khi duyệt');
+    }
+
+    for (const r of params.inferredUnconfirmedRoles) {
+      if (r.key === 'revenue') continue;
+      reasons.push(`${r.label}: app mới đoán cột "${r.colName}", bạn cần xác nhận`);
+    }
+  }
+
+  if (!params.isReadConfirmed) {
+    const countStr = params.unconfirmedCount > 0 ? `${params.unconfirmedCount} ` : '';
+    reasons.push(`Còn ${countStr}mục chưa xác nhận`);
+  }
+
+  if (!params.reviewerName.trim()) {
+    reasons.push('Chưa nhập tên người duyệt');
+  }
+
+  if (params.diffResult && !params.diffResult.valid) {
+    reasons.push('Dữ liệu sau làm sạch không hợp lệ');
+  }
+
+  return reasons;
 }
 
 export const CleanPage: React.FC = () => {
@@ -64,8 +115,8 @@ export const CleanPage: React.FC = () => {
 
   // Reviewer & Approval States
   const [reviewerName, setReviewerName] = useState<string>('Ban Giám Khảo');
-  const [showConfirmApproval, setShowConfirmApproval] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
 
   // UI Interactive States
   const [activeTab, setActiveTab] = useState<'profile' | 'diff'>('profile');
@@ -80,6 +131,19 @@ export const CleanPage: React.FC = () => {
 
   // Debounce ref for switch updates
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // File Read Confirmation Status (Prompt 1C-2a & 1C-2a-UI)
+  const [isReadConfirmed, setIsReadConfirmed] = useState<boolean>(true);
+  const [unconfirmedCount, setUnconfirmedCount] = useState<number>(0);
+
+  // Role Confirmation Status (Prompt 1D-2 0b.1)
+  const [confirmedRoles, setConfirmedRoles] = useState<Record<string, boolean>>({});
+  const handleConfirmRole = useCallback((roleKey: string) => {
+    setConfirmedRoles((prev) => ({ ...prev, [roleKey]: true }));
+  }, []);
+  const handleRevertRoleConfirm = useCallback((roleKey: string) => {
+    setConfirmedRoles((prev) => ({ ...prev, [roleKey]: false }));
+  }, []);
 
   const isApproved =
     session?.state === 'clean_approved' ||
@@ -166,9 +230,6 @@ export const CleanPage: React.FC = () => {
       if (params?.get('tab') === 'diff') {
         setActiveTab('diff');
       }
-      if (params?.get('showConfirm') === 'true') {
-        setShowConfirmApproval(true);
-      }
       if (params?.get('showModal') === 'true' && props.length > 0) {
         setModalProposal(props[0]);
       }
@@ -241,6 +302,93 @@ export const CleanPage: React.FC = () => {
     [session, decisions, proposals, isApproved]
   );
 
+  // Handle dynamic table update from FileReadConfirmationPanel (Prompt 1C-2a Phần F & 1C-2b Phần E)
+  const handleUpdateBusinessTable = useCallback(
+    async (newTable: BusinessTable) => {
+      if (!session) return;
+      ArtifactStore.put(session.id, 'raw', newTable);
+      setRawDataset(newTable);
+
+      let resolved = resolveBusinessRoles(newTable);
+      resolved = applyManualBusinessRoles(resolved, newTable);
+      const newProfile = calculateBusinessProfile(newTable);
+      setProfile(newProfile);
+      ArtifactStore.put(session.id, 'profile', newProfile);
+
+      const newProps = generateBusinessProposals(newTable, newProfile);
+      setProposals(newProps);
+      ArtifactStore.put(session.id, 'proposals', newProps);
+
+      try {
+        const diff = await computeCleanDiff(session.id, decisions);
+        setDiffResult(diff);
+      } catch (err: any) {
+        console.error('[CleanPage] Error recomputing diff after table update:', err);
+      }
+    },
+    [session, decisions]
+  );
+
+  // Handle Sheet Selection from Multi-sheet XLSX (Prompt 1C-2b Phần D)
+  const handleSelectSheet = useCallback(
+    async (sheetName: string) => {
+      if (!session || !rawDataset) return;
+      const curTable = rawDataset as BusinessTable;
+      const bytes = curTable.raw_bytes || ArtifactStore.get<Uint8Array>(session.id, 'raw_bytes');
+      const filename =
+        curTable.filename ||
+        ArtifactStore.get<string>(session.id, 'raw_filename') ||
+        session.dataset?.filename ||
+        'file.xlsx';
+
+      if (!bytes) {
+        console.warn('[CleanPage] Cannot switch sheet: raw_bytes not found in store.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const outcome = await validateBytes(filename, bytes, DEFAULT_LIMITS, {}, { sheetName });
+        if (!outcome.ok) {
+          setErrorMsg(`Sheet "${sheetName}" không chứa bảng dữ liệu hợp lệ. Vui lòng chọn sheet khác.`);
+          setLoading(false);
+          return;
+        }
+
+        if (outcome.businessTable) {
+          setErrorMsg(null);
+          const newTable = outcome.businessTable;
+          newTable.selected_sheet = sheetName;
+          newTable.raw_bytes = bytes;
+          newTable.filename = filename;
+          if (curTable.available_sheets) {
+            newTable.available_sheets = curTable.available_sheets;
+          }
+          ArtifactStore.put(session.id, 'raw', newTable);
+          setRawDataset(newTable);
+
+          let resolved = resolveBusinessRoles(newTable);
+          resolved = applyManualBusinessRoles(resolved, newTable);
+          const newProfile = calculateBusinessProfile(newTable);
+          setProfile(newProfile);
+          ArtifactStore.put(session.id, 'profile', newProfile);
+
+          const newProps = generateBusinessProposals(newTable, newProfile);
+          setProposals(newProps);
+          ArtifactStore.put(session.id, 'proposals', newProps);
+
+          const diff = await computeCleanDiff(session.id, decisions);
+          setDiffResult(diff);
+        }
+      } catch (err: any) {
+        setErrorMsg(`Lỗi khi chuyển sang sheet "${sheetName}": ${err.message || err}`);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [session, rawDataset, decisions]
+  );
+
   // Gate 1 Approval Handler
   const handleApprove = useCallback(async () => {
     if (!session || !reviewerName.trim() || !diffResult || !diffResult.valid) return;
@@ -249,14 +397,14 @@ export const CleanPage: React.FC = () => {
     try {
       await approveCleanGate(session.id, reviewerName.trim(), decisions);
       await refreshSession();
-      setShowConfirmApproval(false);
       showToast({ message: 'Phê duyệt Cổng 1 thành công!', type: 'success' });
+      navigate(isBusiness ? '/trao-doi' : '/phan-tich?autoRun=1');
     } catch (err: any) {
       showToast({ message: err.message_vi || err.message || 'Lỗi phê duyệt Cổng 1', type: 'error' });
     } finally {
       setApproving(false);
     }
-  }, [session, reviewerName, diffResult, decisions, refreshSession, showToast]);
+  }, [session, reviewerName, diffResult, decisions, isBusiness, refreshSession, showToast, navigate]);
 
   // Reclean Handler
   const handleReclean = useCallback(async () => {
@@ -393,28 +541,28 @@ export const CleanPage: React.FC = () => {
       const ordersCol =
         resolved.orders.status === 'tìm thấy' && resolved.orders.col
           ? (cleanTable.columns.find(
-              (c) => c.key === resolved.orders.col?.key && c.role === 'measure'
-            ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
+            (c) => c.key === resolved.orders.col?.key && c.role === 'measure'
+          ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
           : undefined;
       const revCol =
         (resolved.revenue.status === 'tìm thấy' || resolved.revenue.status === 'suy luận') &&
-        resolved.revenue.col
+          resolved.revenue.col
           ? (cleanTable.columns.find(
-              (c) => c.key === resolved.revenue.col?.key && c.role === 'measure'
-            ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
+            (c) => c.key === resolved.revenue.col?.key && c.role === 'measure'
+          ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
           : undefined;
       const cogsCol =
         resolved.cogs.status === 'tìm thấy' && resolved.cogs.col
           ? (cleanTable.columns.find(
-              (c) => c.key === resolved.cogs.col?.key && c.role === 'measure'
-            ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
+            (c) => c.key === resolved.cogs.col?.key && c.role === 'measure'
+          ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
           : undefined;
       const profitCol =
         (resolved.profit.status === 'tìm thấy' || resolved.profit.status === 'suy luận') &&
-        resolved.profit.col
+          resolved.profit.col
           ? (cleanTable.columns.find(
-              (c) => c.key === resolved.profit.col?.key && c.role === 'measure'
-            ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
+            (c) => c.key === resolved.profit.col?.key && c.role === 'measure'
+          ) as Extract<BusinessColumn, { role: 'measure' }> | undefined)
           : undefined;
       const isProfitComputed = resolved.profit.status === 'tính ra';
 
@@ -451,18 +599,32 @@ export const CleanPage: React.FC = () => {
         };
 
         const idVal = getColVal(idCol);
-        const isModified =
-          idVal === 'DS-003' ||
-          idVal === 'DS-015' ||
-          idVal === 'DS-032' ||
-          idVal === 'DS-045' ||
-          idVal === 'DS-009' ||
-          idVal === 'DS-024' ||
-          idVal === 'DS-039';
+        const origRowNum = cleanTable.source_row ? cleanTable.source_row[i] : i + 1;
+        // Prompt 1C-2b F2: Prioritize source_row matching to prevent duplicate ID status collision
+        const matchingDiffs = (bRes.diffRows || []).filter((dr) =>
+          dr.original_row && origRowNum
+            ? dr.original_row === origRowNum
+            : dr.row_id && idVal && dr.row_id === idVal
+        );
+        const isFilled = matchingDiffs.some((dr) => dr.status === 'blank_filled');
+        const isTrimmed = matchingDiffs.some((dr) => dr.status === 'trimmed');
+
+        let statusLabel = 'Giữ nguyên';
+        let statusVariant: BadgeVariant = 'neutral';
+        if (isFilled && isTrimmed) {
+          statusLabel = 'Đã điền & chuẩn hóa';
+          statusVariant = 'warn';
+        } else if (isFilled) {
+          statusLabel = 'Đã điền';
+          statusVariant = 'warn';
+        } else if (isTrimmed) {
+          statusLabel = 'Đã chuẩn hóa';
+          statusVariant = 'warn';
+        }
 
         rows.push({
           stt: i + 1,
-          sourceRow: cleanTable.source_row[i] || i + 1,
+          sourceRow: origRowNum,
           id: idVal,
           time: getColVal(timeCol),
           channel: getColVal(channelCol),
@@ -472,16 +634,92 @@ export const CleanPage: React.FC = () => {
           revenue: getMeasureCell(revCol, resolved.revenue.status),
           cogs: getMeasureCell(cogsCol, resolved.cogs.status),
           profit: getMeasureCell(profitCol, resolved.profit.status, isProfitComputed),
-          status: isModified ? 'Đã chuẩn hóa' : 'Đã làm sạch',
-          statusVariant: isModified ? ('warn' as BadgeVariant) : ('success' as BadgeVariant),
+          status: statusLabel,
+          statusVariant,
           isDropped: false,
-          isFilled: idVal === 'DS-009' || idVal === 'DS-024' || idVal === 'DS-039',
+          isFilled,
           isOutlier: false,
         });
       }
 
+      // Add dropped duplicate rows from rawTable / diffRows (Prompt 1C-2b F2)
+      const droppedDiffs = (bRes.diffRows || []).filter((dr) => dr.status === 'duplicate_dropped');
+      if (bRes.rawTable && droppedDiffs.length > 0) {
+        const rawTable = bRes.rawTable;
+        const rawIdCol = rawTable.columns.find((c) => c.role === 'id');
+        const rawTimeCol = resolved.time.col ? rawTable.columns.find((c) => c.key === resolved.time.col?.key) : undefined;
+        const rawChannelCol = resolved.channel.col ? rawTable.columns.find((c) => c.key === resolved.channel.col?.key) : undefined;
+        const rawRegionCol = resolved.region.col ? rawTable.columns.find((c) => c.key === resolved.region.col?.key) : undefined;
+        const rawProdCol = resolved.product.col ? rawTable.columns.find((c) => c.key === resolved.product.col?.key) : undefined;
+        const rawOrdersCol = resolved.orders.col ? (rawTable.columns.find((c) => c.key === resolved.orders.col?.key && c.role === 'measure') as any) : undefined;
+        const rawRevCol = resolved.revenue.col ? (rawTable.columns.find((c) => c.key === resolved.revenue.col?.key && c.role === 'measure') as any) : undefined;
+        const rawCogsCol = resolved.cogs.col ? (rawTable.columns.find((c) => c.key === resolved.cogs.col?.key && c.role === 'measure') as any) : undefined;
+        const rawProfitCol = resolved.profit.col ? (rawTable.columns.find((c) => c.key === resolved.profit.col?.key && c.role === 'measure') as any) : undefined;
+
+        for (const dr of droppedDiffs) {
+          let rawIdx = -1;
+          if (rawTable.source_row) {
+            for (let r = 0; r < rawTable.n; r++) {
+              if (rawTable.source_row[r] === dr.original_row) {
+                rawIdx = r;
+                break;
+              }
+            }
+          }
+          if (rawIdx !== -1) {
+            const getRawColVal = (col: any): string => {
+              if (!col) return '';
+              if (col.role === 'id') return col.values[rawIdx] || '';
+              if (col.role === 'time') return col.raw_labels ? col.raw_labels[rawIdx] : String(col.values[rawIdx]);
+              if (col.role === 'dimension') {
+                if (col.raw_labels) return col.raw_labels[rawIdx];
+                const code = col.codes[rawIdx];
+                return code === 0xffff ? 'Không xác định' : col.categories[code] || 'Không xác định';
+              }
+              return '';
+            };
+            const getRawMeasureCell = (col: any, status?: RoleResolutionStatus): string => {
+              if (status === 'không đáng tin') return 'Không đáng tin';
+              if (status === 'thiếu') return 'Không có cột này';
+              if (!col) return 'Không có cột này';
+              const num = col.values[rawIdx];
+              return isNaN(num) ? 'Không có cột này' : num.toLocaleString('vi-VN');
+            };
+
+            rows.push({
+              stt: 0,
+              sourceRow: dr.original_row,
+              id: getRawColVal(rawIdCol) || dr.row_id,
+              time: getRawColVal(rawTimeCol),
+              channel: getRawColVal(rawChannelCol),
+              region: getRawColVal(rawRegionCol),
+              product: getRawColVal(rawProdCol),
+              orders: getRawMeasureCell(rawOrdersCol, resolved.orders.status),
+              revenue: getRawMeasureCell(rawRevCol, resolved.revenue.status),
+              cogs: getRawMeasureCell(rawCogsCol, resolved.cogs.status),
+              profit: getRawMeasureCell(rawProfitCol, resolved.profit.status),
+              status: 'Bỏ: Trùng lặp',
+              statusVariant: 'danger' as BadgeVariant,
+              isDropped: true,
+              isFilled: false,
+              isOutlier: false,
+            });
+          }
+        }
+      }
+
+      rows.sort((a, b) => a.sourceRow - b.sourceRow);
+      rows.forEach((r, idx) => {
+        r.stt = idx + 1;
+      });
+
+      let filteredRows = rows;
+      if (diffViewMode === 'clean_only') {
+        filteredRows = filteredRows.filter((r) => !r.isDropped);
+      }
+
       const startIdx = (diffPage - 1) * pageSize;
-      return rows.slice(startIdx, startIdx + pageSize);
+      return filteredRows.slice(startIdx, startIdx + pageSize);
     }
 
     const tRes = diffResult as CleanPipelineResult;
@@ -551,31 +789,196 @@ export const CleanPage: React.FC = () => {
 
   const totalDiffPages = Math.max(1, Math.ceil(totalDiffRows / pageSize));
 
+  const bDiff = isBusiness ? (diffResult as BusinessCleanPipelineResult) : null;
+  const bProfile = isBusiness ? (profile as BusinessProfile) : null;
+
+  const totalBeforeCount = isBusiness && bProfile ? bProfile.total_rows : (diffResult ? diffResult.totalBeforeRows : 0);
+  const totalAfterCount = diffResult ? diffResult.totalAfterRows : 0;
+  const totalDroppedCount = isBusiness && bProfile && diffResult ? bProfile.total_rows - diffResult.totalAfterRows : (diffResult ? diffResult.droppedCount : 0);
+
+  const cleanTable = bDiff?.cleanTable;
+  const resolvedRoles = bDiff ? (bDiff.resolvedRoles || (cleanTable ? resolveBusinessRoles(cleanTable) : null)) : null;
+
+  const isRevenueUserChosen = Boolean(
+    cleanTable?.columns.some((c) => c.userChosenRole === 'revenue') ||
+    (rawDataset as BusinessTable)?.columns?.some((c) => c.userChosenRole === 'revenue') ||
+    ((rawDataset as BusinessTable)?.manual_column_roles && (rawDataset as BusinessTable).manual_column_roles![resolvedRoles?.revenue?.col?.label || ''] === 'revenue')
+  );
+
+  const isRevenueInferred = Boolean(
+    isBusiness &&
+    resolvedRoles &&
+    resolvedRoles.revenue.status === 'suy luận' &&
+    !isRevenueUserChosen &&
+    !confirmedRoles['revenue']
+  );
+
+  // Prompt 1D-1 & 1D-2: Only allow revenue to pass Gate 1 if found, userChosen, or confirmed
+  const hasRevenueApproved = Boolean(
+    resolvedRoles &&
+    (resolvedRoles.revenue.status === 'tìm thấy' || isRevenueUserChosen || confirmedRoles['revenue']) &&
+    !isRevenueInferred
+  );
+
+  const hasChannel = Boolean(resolvedRoles && resolvedRoles.channel.status === 'tìm thấy');
+  const hasRegion = Boolean(resolvedRoles && resolvedRoles.region.status === 'tìm thấy');
+  const hasProduct = Boolean(resolvedRoles && resolvedRoles.product.status === 'tìm thấy');
+  const hasOrders = Boolean(resolvedRoles && resolvedRoles.orders.status === 'tìm thấy');
+  const hasRevenue = hasRevenueApproved;
+  const showRevenueInDiff = Boolean(
+    resolvedRoles && (resolvedRoles.revenue.status === 'tìm thấy' || resolvedRoles.revenue.status === 'suy luận')
+  );
+  const hasCogs = Boolean(resolvedRoles && resolvedRoles.cogs.status === 'tìm thấy');
+  const hasProfit = Boolean(resolvedRoles && (resolvedRoles.profit.status === 'tìm thấy' || resolvedRoles.profit.status === 'suy luận' || resolvedRoles.profit.status === 'tính ra'));
+
+  const inferredUnconfirmedRoles: Array<{ key: string; label: string; colName: string }> = useMemo(() => {
+    if (!isBusiness || !resolvedRoles) return [];
+    const list: Array<{ key: string; label: string; colName: string }> = [];
+    const specs = [
+      { key: 'revenue', label: 'Doanh thu' },
+      { key: 'cogs', label: 'Giá vốn' },
+      { key: 'profit', label: 'Lợi nhuận' },
+      { key: 'orders', label: 'Số đơn' },
+      { key: 'channel', label: 'Kênh bán' },
+      { key: 'region', label: 'Khu vực' },
+      { key: 'product', label: 'Sản phẩm' },
+      { key: 'time', label: 'Tháng' },
+    ];
+    for (const s of specs) {
+      const item = (resolvedRoles as any)[s.key];
+      if (item && item.status === 'suy luận' && item.col) {
+        const isChosen = Boolean(
+          cleanTable?.columns.some((c) => c.userChosenRole === s.key) ||
+          (rawDataset as BusinessTable)?.columns?.some((c) => c.userChosenRole === s.key) ||
+          ((rawDataset as BusinessTable)?.manual_column_roles && (rawDataset as BusinessTable).manual_column_roles![item.col.label] === s.key)
+        );
+        if (!isChosen && !confirmedRoles[s.key]) {
+          list.push({ key: s.key, label: s.label, colName: item.col.label });
+        }
+      }
+    }
+    return list;
+  }, [isBusiness, resolvedRoles, cleanTable, rawDataset, confirmedRoles]);
+
+  const missingCleanCols: string[] = useMemo(() => {
+    if (!isBusiness || !resolvedRoles) return [];
+    const missing: string[] = [];
+    if (!hasChannel) missing.push('Kênh bán');
+    if (!hasRegion) missing.push('Khu vực');
+    if (!hasProduct) missing.push('Sản phẩm');
+    if (!hasOrders) missing.push('Số đơn');
+    if (!hasRevenueApproved) missing.push('Doanh thu');
+    if (!hasCogs) missing.push('Giá vốn');
+    if (!hasProfit) missing.push('Lợi nhuận');
+    return missing;
+  }, [isBusiness, resolvedRoles, hasChannel, hasRegion, hasProduct, hasOrders, hasRevenueApproved, hasCogs, hasProfit]);
+
+  // Reduction Chain (Prompt 1Y-2 Muc 5 & Prompt 1C-2a D3)
+  const pipelineReductionChain: string = useMemo(() => {
+    if (!isBusiness || !bProfile || !diffResult) return '';
+    const G = bProfile.total_rows;
+    const B = bProfile.skipped_blank_rows ?? 0;
+    const T = bProfile.skipped_total_rows ?? 0;
+    const bRes = diffResult as BusinessCleanPipelineResult;
+    const D = (bRes.diffRows || []).filter((dr) => dr.status === 'duplicate_dropped').length;
+
+    const parts: string[] = [`${G} dòng gốc`];
+    let current = G;
+
+    if (B > 0) {
+      current -= B;
+      parts.push(`${current} (bỏ ${B} dòng trống)`);
+    }
+
+    if (T > 0) {
+      current -= T;
+      parts.push(`${current} (bỏ ${T} dòng tổng cộng)`);
+    }
+
+    if (D > 0) {
+      current -= D;
+      parts.push(`${current} (bỏ ${D} dòng trùng)`);
+    }
+
+    if (B === 0 && T === 0 && D === 0) {
+      parts.push(`${current} (bỏ 0 dòng)`);
+    }
+
+    return parts.join(' → ');
+  }, [isBusiness, bProfile, diffResult]);
+
+  const hasDownstreamResults = useMemo(() => {
+    if (!session) return false;
+    const meta = (session as any).meta || {};
+    return Boolean(
+      session.state === 'analyzed' ||
+      session.state === 'report_approved' ||
+      session.report_status === 'approved' ||
+      session.report_status === 'draft' ||
+      meta.metrics ||
+      meta.charts ||
+      meta.report
+    );
+  }, [session]);
+
+  const lockReasons = useMemo(() => {
+    return getApprovalLockReasons({
+      isBusiness: Boolean(isBusiness),
+      approving,
+      reviewerName,
+      diffResult,
+      resolvedRoles,
+      hasRevenueApproved,
+      isRevenueInferred,
+      inferredUnconfirmedRoles,
+      isReadConfirmed,
+      unconfirmedCount,
+    });
+  }, [
+    isBusiness,
+    approving,
+    reviewerName,
+    diffResult,
+    resolvedRoles,
+    hasRevenueApproved,
+    isRevenueInferred,
+    inferredUnconfirmedRoles,
+    isReadConfirmed,
+    unconfirmedCount,
+  ]);
+
   // Columns for Diff Table
   const diffColumns: Column<any>[] = useMemo(() => {
     if (isBusiness) {
-      return [
+      const cols: Column<any>[] = [
         { key: 'stt', header: 'STT', width: '50px', align: 'center' },
         { key: 'id', header: 'Mã dòng', width: '85px', align: 'center' },
         { key: 'time', header: 'Tháng', width: '85px', align: 'center' },
-        { key: 'channel', header: 'Kênh bán', width: '130px' },
-        { key: 'region', header: 'Khu vực', width: '130px' },
-        { key: 'product', header: 'Sản phẩm', width: '120px' },
-        { key: 'orders', header: 'Số đơn', width: '70px', align: 'right' },
-        { key: 'revenue', header: 'Doanh thu (VND)', width: '130px', align: 'right' },
-        { key: 'cogs', header: 'Giá vốn (VND)', width: '120px', align: 'right' },
-        { key: 'profit', header: 'Lợi nhuận (VND)', width: '120px', align: 'right' },
-        {
-          key: 'status',
-          header: 'Trạng thái',
-          width: '120px',
-          render: (row) => (
+      ];
+      if (hasChannel) cols.push({ key: 'channel', header: 'Kênh bán', width: '130px' });
+      if (hasRegion) cols.push({ key: 'region', header: 'Khu vực', width: '130px' });
+      if (hasProduct) cols.push({ key: 'product', header: 'Sản phẩm', width: '120px' });
+      if (hasOrders) cols.push({ key: 'orders', header: 'Số đơn', width: '70px', align: 'right' });
+      if (showRevenueInDiff) cols.push({ key: 'revenue', header: 'Doanh thu (VND)', width: '130px', align: 'right' });
+      if (hasCogs) cols.push({ key: 'cogs', header: 'Giá vốn (VND)', width: '120px', align: 'right' });
+      if (hasProfit) {
+        const profitHeader = resolvedRoles?.profit?.status === 'tính ra' ? 'Lợi nhuận (tự tính)' : 'Lợi nhuận (VND)';
+        cols.push({ key: 'profit', header: profitHeader, width: '130px', align: 'right' });
+      }
+      cols.push({
+        key: 'status',
+        header: 'Trạng thái',
+        width: '120px',
+        render: (row) =>
+          row.status ? (
             <PixelBadge variant={row.statusVariant} size="sm">
               {row.status}
             </PixelBadge>
+          ) : (
+            <span style={{ color: 'var(--ink-soft)' }}>-</span>
           ),
-        },
-      ];
+      });
+      return cols;
     }
     return [
       { key: 'stt', header: 'STT', width: '50px', align: 'center' },
@@ -598,43 +1001,64 @@ export const CleanPage: React.FC = () => {
         ),
       },
     ];
-  }, [isBusiness]);
+  }, [isBusiness, hasChannel, hasRegion, hasProduct, hasOrders, hasRevenue, hasCogs, hasProfit]);
 
   // Affected Rows Modal Rows
   const modalAffectedRows = useMemo(() => {
     if (!modalProposal || !diffResult || !rawDataset) return [];
 
     if (isBusiness) {
+      const bRes = diffResult as BusinessCleanPipelineResult;
       const op = modalProposal.op as string;
       const affectedList: any[] = [];
 
-      if (op === 'remove_blank_rows') {
-        affectedList.push(
-          { stt: 1, sourceRow: 14, date: '-', symbol: 'Dòng 14', open: '-', high: '-', low: '-', close: '-', volume: '-', action: 'Loại bỏ dòng trống' },
-          { stt: 2, sourceRow: 40, date: '-', symbol: 'Dòng 40', open: '-', high: '-', low: '-', close: '-', volume: '-', action: 'Loại bỏ dòng trống' }
-        );
-      } else if (op === 'trim_whitespace') {
-        affectedList.push(
-          { stt: 1, sourceRow: 4, date: '2026-07', symbol: 'DS-003', open: 'Kênh bán', high: ' Website ', low: '→', close: 'Website', volume: '1 ô', action: 'Tỉa khoảng trắng' },
-          { stt: 2, sourceRow: 17, date: '2026-08', symbol: 'DS-015', open: 'Khu vực', high: '  Miền Bắc', low: '→', close: 'Miền Bắc', volume: '1 ô', action: 'Tỉa khoảng trắng' },
-          { stt: 3, sourceRow: 34, date: '2026-09', symbol: 'DS-032', open: 'Sản phẩm', high: 'Túi tote ', low: '→', close: 'Túi tote', volume: '1 ô', action: 'Tỉa khoảng trắng' },
-          { stt: 4, sourceRow: 49, date: '2026-10', symbol: 'DS-045', open: 'Kênh bán', high: 'Sàn TMĐT ', low: '→', close: 'Sàn TMĐT', volume: '1 ô', action: 'Tỉa khoảng trắng' }
-        );
-      } else if (op === 'drop_exact_duplicates') {
-        affectedList.push(
-          { stt: 1, sourceRow: 39, date: '2026-07', symbol: 'DS-008', open: 'Cửa hàng', high: 'Miền Trung', low: 'Túi tote', close: '4.960.000', volume: '32 đơn', action: 'Loại bỏ dòng trùng lặp' },
-          { stt: 2, sourceRow: 53, date: '2026-10', symbol: 'DS-043', open: 'Cửa hàng', high: 'Miền Bắc', low: 'Quần jeans', close: '32.433.000', volume: '57 đơn', action: 'Loại bỏ dòng trùng lặp' }
-        );
-      } else if (op === 'fill_blank_dimension_label') {
-        affectedList.push(
-          { stt: 1, sourceRow: 10, date: '2026-07', symbol: 'DS-009', open: 'Khu vực', high: '(Trống)', low: '→', close: 'Không xác định', volume: '85 đơn', action: 'Điền nhãn chuẩn' },
-          { stt: 2, sourceRow: 26, date: '2026-08', symbol: 'DS-024', open: 'Khu vực', high: '(Trống)', low: '→', close: 'Không xác định', volume: '51 đơn', action: 'Điền nhãn chuẩn' },
-          { stt: 3, sourceRow: 43, date: '2026-10', symbol: 'DS-039', open: 'Sản phẩm', high: '(Trống)', low: '→', close: 'Không xác định', volume: '80 đơn', action: 'Điền nhãn chuẩn' }
-        );
+      let matchingStatus = '';
+      if (op === 'remove_blank_rows') matchingStatus = 'blank_row_dropped';
+      else if (op === 'trim_whitespace') matchingStatus = 'trimmed';
+      else if (op === 'drop_exact_duplicates') matchingStatus = 'duplicate_dropped';
+      else if (op === 'fill_blank_dimension_label') matchingStatus = 'blank_filled';
+
+      const timeCol = bRes.cleanTable?.columns.find((c) => c.role === 'time');
+
+      if (matchingStatus) {
+        const matching = (bRes.diffRows || []).filter((r) => r.status === matchingStatus);
+        if (matching.length > 0) {
+          matching.forEach((dr, idx) => {
+            let dateStr = '-';
+            if (timeCol) {
+              const rowInClean = bRes.cleanTable.source_row ? Array.from(bRes.cleanTable.source_row).findIndex((sr) => sr === dr.original_row) : -1;
+              if (rowInClean >= 0 && timeCol.raw_labels) {
+                dateStr = timeCol.raw_labels[rowInClean] || '-';
+              }
+            }
+            affectedList.push({
+              stt: idx + 1,
+              sourceRow: dr.original_row || '-',
+              date: dateStr,
+              symbol: dr.row_id || `Dòng ${dr.original_row}`,
+              action: dr.details_vi || modalProposal.title_vi,
+            });
+          });
+        } else if (op === 'remove_blank_rows' && modalProposal.rows_affected > 0) {
+          for (let i = 0; i < modalProposal.rows_affected; i++) {
+            affectedList.push({
+              stt: i + 1,
+              sourceRow: '-',
+              date: '-',
+              symbol: `Dòng trống #${i + 1}`,
+              action: 'Loại bỏ dòng trống hoàn toàn (dữ liệu thô không có giá trị)',
+            });
+          }
+        }
       } else if (op === 'sort_natural') {
-        affectedList.push(
-          { stt: 1, sourceRow: 2, date: '2026-07', symbol: 'DS-001', open: 'Tháng', high: 'Mã', low: '→', close: 'Tăng dần', volume: '48 dòng', action: 'Sắp xếp tự nhiên' }
-        );
+        const rowCount = bRes.totalAfterRows || bRes.cleanTable?.n || modalProposal.rows_affected || 0;
+        affectedList.push({
+          stt: 1,
+          sourceRow: 1,
+          date: '-',
+          symbol: `Toàn bộ ${rowCount} dòng`,
+          action: modalProposal.description_vi || 'Sắp xếp tự nhiên theo thứ tự thời gian và mã định danh',
+        });
       }
 
       const startIdx = (modalPage - 1) * modalPageSize;
@@ -679,6 +1103,25 @@ export const CleanPage: React.FC = () => {
   const totalModalAffected = useMemo(() => {
     if (!modalProposal || !diffResult) return 0;
     if (isBusiness) {
+      if (modalProposal.op === 'sort_natural') {
+        return (diffResult as BusinessCleanPipelineResult).totalAfterRows || (diffResult as BusinessCleanPipelineResult).cleanTable?.n || modalProposal.rows_affected || 0;
+      }
+      const matchingStatus =
+        modalProposal.op === 'remove_blank_rows'
+          ? 'blank_row_dropped'
+          : modalProposal.op === 'trim_whitespace'
+            ? 'trimmed'
+            : modalProposal.op === 'drop_exact_duplicates'
+              ? 'duplicate_dropped'
+              : modalProposal.op === 'fill_blank_dimension_label'
+                ? 'blank_filled'
+                : '';
+      if (matchingStatus) {
+        const matched = ((diffResult as BusinessCleanPipelineResult).diffRows || []).filter(
+          (r) => r.status === matchingStatus
+        );
+        if (matched.length > 0) return matched.length;
+      }
       return modalProposal.rows_affected;
     }
     const tDiff = diffResult as CleanPipelineResult;
@@ -734,8 +1177,6 @@ export const CleanPage: React.FC = () => {
     );
   }
 
-  const bProfile = isBusiness ? (profile as BusinessProfile) : null;
-  const bDiff = isBusiness ? (diffResult as BusinessCleanPipelineResult) : null;
   const tProfile = !isBusiness ? (profile as Profile) : null;
 
   return (
@@ -761,6 +1202,45 @@ export const CleanPage: React.FC = () => {
           )}
         </div>
 
+        {/* Total rows banner if skipped_total_rows > 0 (Prompt 1C-2a D3) */}
+        {isBusiness && bProfile && (bProfile.skipped_total_rows ?? 0) > 0 && (
+          <div
+            style={{
+              padding: '10px 14px',
+              backgroundColor: '#eff6ff',
+              border: '1px solid var(--blue)',
+              color: 'var(--blue)',
+              fontFamily: 'var(--font-content)',
+              fontSize: '14px',
+              marginTop: 'var(--space-3)',
+              marginBottom: 'var(--space-3)',
+            }}
+          >
+            ℹ️ Đã loại {bProfile.skipped_total_rows} dòng tổng cộng (dòng gốc số{' '}
+            {(bProfile.skipped_total_row_numbers ?? []).join(', ')}).
+          </div>
+        )}
+
+        {/* Khung Xác nhận cách đọc file (Prompt 1C-2a & 1C-2a-UI & 1C-2b & 1D-2) */}
+        {isBusiness && rawDataset && (rawDataset as any).kind === 'business' && (
+          <FileReadConfirmationPanel
+            table={rawDataset as BusinessTable}
+            onUpdateTable={handleUpdateBusinessTable}
+            onSelectSheet={handleSelectSheet}
+            onConfirmStatusChange={(isConfirmed, count) => {
+              setIsReadConfirmed(isConfirmed);
+              if (count !== undefined) {
+                setUnconfirmedCount(count);
+              }
+            }}
+            isApproved={isApproved}
+            approvalLockReasons={lockReasons}
+            confirmedRoles={confirmedRoles}
+            onConfirmRole={handleConfirmRole}
+            onRevertRoleConfirm={handleRevertRoleConfirm}
+          />
+        )}
+
         {/* 4 KPI Summary Cards */}
         <div
           style={{
@@ -784,7 +1264,12 @@ export const CleanPage: React.FC = () => {
                   TỔNG SỐ DÒNG
                 </div>
                 <div className="font-pixel" style={{ fontSize: '24px', color: 'var(--ink)', marginTop: '4px' }}>
-                  {bProfile.total_rows.toLocaleString('vi-VN')} dòng
+                  {bProfile.total_rows.toLocaleString('vi-VN')} dòng gốc
+                  {(bProfile.skipped_blank_rows ?? 0) > 0 && (
+                    <span style={{ fontSize: '14px', color: 'var(--ink-soft)', marginLeft: '6px' }}>
+                      ({(bProfile.total_rows - (bProfile.skipped_blank_rows ?? 0)).toLocaleString('vi-VN')} có dữ liệu)
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -837,6 +1322,9 @@ export const CleanPage: React.FC = () => {
               >
                 <div className="font-pixel" style={{ fontSize: '11px', color: 'var(--ink-soft)' }}>
                   TỔNG DOANH THU
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--ink-soft)', fontStyle: 'italic', marginTop: '1px' }}>
+                  (gốc, trước làm sạch)
                 </div>
                 <div className="font-pixel" style={{ fontSize: '24px', color: 'var(--good)', marginTop: '4px' }}>
                   {bProfile.aggregates.total_revenue.toLocaleString('vi-VN')} đ
@@ -985,12 +1473,26 @@ export const CleanPage: React.FC = () => {
 
             {/* TAB 1: Profiling */}
             {activeTab === 'profile' && (
-              <div style={{ overflowX: 'auto' }}>
-                <PixelTable
-                  columns={profileColumns}
-                  data={profileTableRows}
-                  emptyMessage="Chưa có dữ liệu hồ sơ."
-                />
+              <div>
+                {isBusiness && bProfile && (
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--ink-soft)',
+                      marginBottom: '8px',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Tính trên {(bProfile.total_rows - (bProfile.skipped_blank_rows ?? 0)).toLocaleString('vi-VN')} dòng có dữ liệu, trước khi bỏ trùng
+                  </div>
+                )}
+                <div style={{ overflowX: 'auto' }}>
+                  <PixelTable
+                    columns={profileColumns}
+                    data={profileTableRows}
+                    emptyMessage="Chưa có dữ liệu hồ sơ."
+                  />
+                </div>
               </div>
             )}
 
@@ -1014,7 +1516,7 @@ export const CleanPage: React.FC = () => {
                   <div>
                     <strong style={{ fontSize: '13px' }}>Tác động: </strong>
                     <span style={{ fontSize: '13px' }}>
-                      {isBusiness && bProfile ? bProfile.total_rows : diffResult.totalBeforeRows} → {diffResult.totalAfterRows} dòng (bỏ {isBusiness && bProfile ? bProfile.total_rows - diffResult.totalAfterRows : diffResult.droppedCount} dòng)
+                      {totalBeforeCount} → {totalAfterCount} dòng (bỏ {totalDroppedCount} dòng)
                     </span>
                   </div>
 
@@ -1026,31 +1528,59 @@ export const CleanPage: React.FC = () => {
                     </div>
                   )}
 
-                  {!isBusiness && (
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <PixelButton
-                        variant={diffViewMode === 'all' ? 'primary' : 'secondary'}
-                        size="sm"
-                        onClick={() => {
-                          setDiffViewMode('all');
-                          setDiffPage(1);
-                        }}
-                      >
-                        Tất cả
-                      </PixelButton>
-                      <PixelButton
-                        variant={diffViewMode === 'clean_only' ? 'primary' : 'secondary'}
-                        size="sm"
-                        onClick={() => {
-                          setDiffViewMode('clean_only');
-                          setDiffPage(1);
-                        }}
-                      >
-                        Chỉ dòng giữ lại
-                      </PixelButton>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <PixelButton
+                      variant={diffViewMode === 'all' ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={() => {
+                        setDiffViewMode('all');
+                        setDiffPage(1);
+                      }}
+                    >
+                      Tất cả
+                    </PixelButton>
+                    <PixelButton
+                      variant={diffViewMode === 'clean_only' ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={() => {
+                        setDiffViewMode('clean_only');
+                        setDiffPage(1);
+                      }}
+                    >
+                      Chỉ dòng giữ lại
+                    </PixelButton>
+                  </div>
                 </div>
+
+                {/* Pipeline Reduction Chain (Prompt 1Y-2 Muc 5) */}
+                {isBusiness && pipelineReductionChain && (
+                  <div
+                    style={{
+                      backgroundColor: 'var(--panel)',
+                      border: '1px solid var(--ink)',
+                      padding: '6px 12px',
+                      marginBottom: '8px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    {pipelineReductionChain}
+                  </div>
+                )}
+
+                {isBusiness && missingCleanCols.length > 0 && (
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--ink-soft)',
+                      marginBottom: '8px',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Không có cột: {missingCleanCols.join(', ')}.
+                  </div>
+                )}
 
                 {/* Diff Paginated Table */}
                 <div style={{ overflowX: 'auto' }}>
@@ -1088,10 +1618,10 @@ export const CleanPage: React.FC = () => {
                             backgroundColor: r.isDropped
                               ? 'var(--bad-bg, #ffebee)'
                               : r.isFilled
-                              ? 'var(--good-bg, #e8f5e9)'
-                              : r.isOutlier
-                              ? 'var(--warn-bg, #fff9c4)'
-                              : 'transparent',
+                                ? 'var(--good-bg, #e8f5e9)'
+                                : r.isOutlier
+                                  ? 'var(--warn-bg, #fff9c4)'
+                                  : 'transparent',
                             textDecoration: r.isDropped ? 'line-through' : 'none',
                             color: r.isDropped ? 'var(--ink-soft)' : 'var(--ink)',
                           }}
@@ -1103,33 +1633,41 @@ export const CleanPage: React.FC = () => {
                                 <strong>{r.id}</strong>
                               </td>
                               <td style={{ padding: '4px 8px', textAlign: 'center' }}>{r.time}</td>
-                              <td style={{ padding: '4px 8px' }}>{r.channel}</td>
+                              {hasChannel && <td style={{ padding: '4px 8px' }}>{r.channel}</td>}
+                              {hasRegion && (
+                                <td style={{ padding: '4px 8px' }}>
+                                  {r.region === 'Không xác định' ? (
+                                    <PixelBadge variant="warn" size="sm">
+                                      Không xác định
+                                    </PixelBadge>
+                                  ) : (
+                                    r.region
+                                  )}
+                                </td>
+                              )}
+                              {hasProduct && (
+                                <td style={{ padding: '4px 8px' }}>
+                                  {r.product === 'Không xác định' ? (
+                                    <PixelBadge variant="warn" size="sm">
+                                      Không xác định
+                                    </PixelBadge>
+                                  ) : (
+                                    r.product
+                                  )}
+                                </td>
+                              )}
+                              {hasOrders && <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.orders}</td>}
+                              {hasRevenue && <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.revenue}</td>}
+                              {hasCogs && <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.cogs}</td>}
+                              {hasProfit && <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.profit}</td>}
                               <td style={{ padding: '4px 8px' }}>
-                                {r.region === 'Không xác định' ? (
-                                  <PixelBadge variant="warn" size="sm">
-                                    Không xác định
+                                {r.status ? (
+                                  <PixelBadge variant={r.statusVariant} size="sm">
+                                    {r.status}
                                   </PixelBadge>
                                 ) : (
-                                  r.region
+                                  <span style={{ color: 'var(--ink-soft)' }}>-</span>
                                 )}
-                              </td>
-                              <td style={{ padding: '4px 8px' }}>
-                                {r.product === 'Không xác định' ? (
-                                  <PixelBadge variant="warn" size="sm">
-                                    Không xác định
-                                  </PixelBadge>
-                                ) : (
-                                  r.product
-                                )}
-                              </td>
-                              <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.orders}</td>
-                              <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.revenue}</td>
-                              <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.cogs}</td>
-                              <td style={{ padding: '4px 8px', textAlign: 'right' }}>{r.profit}</td>
-                              <td style={{ padding: '4px 8px' }}>
-                                <PixelBadge variant={r.statusVariant} size="sm">
-                                  {r.status}
-                                </PixelBadge>
                               </td>
                             </>
                           ) : (
@@ -1216,7 +1754,7 @@ export const CleanPage: React.FC = () => {
                         MẶC ĐỊNH
                       </PixelBadge>
                     </div>
-                    <PixelSwitch checked={true} onChange={() => {}} disabled={true} />
+                    <PixelSwitch checked={true} onChange={() => { }} disabled={true} />
                   </div>
                   <p style={{ fontSize: '12px', color: 'var(--ink-soft)', marginTop: '6px', margin: 0 }}>
                     Thao tác nền tảng luôn được áp dụng để đảm bảo tính chuỗi thời gian cho các chỉ số kỹ thuật.
@@ -1325,6 +1863,7 @@ export const CleanPage: React.FC = () => {
                       <PixelButton
                         variant="ghost"
                         size="sm"
+                        font="content"
                         icon="checklist"
                         onClick={() => {
                           setModalProposal(p);
@@ -1344,6 +1883,7 @@ export const CleanPage: React.FC = () => {
 
       {/* Fixed Action Bar at Bottom */}
       <div
+        data-bottom-bar="true"
         className="px-shadow-md"
         style={{
           position: 'fixed',
@@ -1368,8 +1908,8 @@ export const CleanPage: React.FC = () => {
             KẾT QUẢ ÁP DỤNG ĐỀ XUẤT:
           </span>
           <span className="font-content" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>
-            {diffResult.totalBeforeRows.toLocaleString('vi-VN')} → {diffResult.totalAfterRows.toLocaleString('vi-VN')} dòng (bỏ{' '}
-            {diffResult.droppedCount.toLocaleString('vi-VN')} dòng)
+            {totalBeforeCount.toLocaleString('vi-VN')} → {totalAfterCount.toLocaleString('vi-VN')} dòng (bỏ{' '}
+            {totalDroppedCount.toLocaleString('vi-VN')} dòng)
           </span>
         </div>
 
@@ -1401,11 +1941,64 @@ export const CleanPage: React.FC = () => {
                 <PixelIcon name="check" size={14} />
                 <span>Đã được duyệt bởi {activeCleanArtifact?.reviewer_name || reviewerName}</span>
               </span>
-              <PixelButton variant="secondary" size="sm" icon="refresh" onClick={handleReclean}>
-                Làm sạch lại
-              </PixelButton>
-              <PixelButton variant="primary" size="sm" icon="arrow-right" onClick={() => navigate('/phan-tich')}>
-                Đến bước Phân tích
+              {!showReopenConfirm ? (
+                <PixelButton
+                  variant="secondary"
+                  size="sm"
+                  icon="refresh"
+                  onClick={() => {
+                    if (hasDownstreamResults) {
+                      setShowReopenConfirm(true);
+                    } else {
+                      handleReclean();
+                    }
+                  }}
+                >
+                  MỞ LẠI CỔNG 1 ĐỂ SỬA
+                </PixelButton>
+              ) : (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid var(--warn, #f59e0b)',
+                    padding: '3px 8px',
+                    borderRadius: '4px',
+                  }}
+                >
+                  <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 600 }}>
+                    Mở lại sẽ xóa kết quả phân tích và báo cáo hiện có.
+                  </span>
+                  <PixelButton
+                    variant="primary"
+                    size="sm"
+                    onClick={async () => {
+                      setShowReopenConfirm(false);
+                      await handleReclean();
+                    }}
+                    style={{ backgroundColor: 'var(--bad, #ef4444)', color: '#fff', fontSize: '11px', padding: '2px 8px' }}
+                  >
+                    MỞ LẠI VÀ XÓA
+                  </PixelButton>
+                  <PixelButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowReopenConfirm(false)}
+                    style={{ fontSize: '11px', padding: '2px 8px' }}
+                  >
+                    HỦY
+                  </PixelButton>
+                </div>
+              )}
+              <PixelButton
+                variant="primary"
+                size="sm"
+                icon="arrow-right"
+                onClick={() => navigate(isBusiness ? '/trao-doi' : '/phan-tich')}
+              >
+                {isBusiness ? 'Đến bước Trao đổi' : 'Đến bước Phân tích'}
               </PixelButton>
             </div>
           ) : (
@@ -1433,12 +2026,26 @@ export const CleanPage: React.FC = () => {
                   backgroundColor: 'var(--white)',
                 }}
               />
+              {/* Prompt F1 & 1C-2d E1: Lock reason notice next to Duyệt button */}
+              {lockReasons.length > 0 && (
+                <span
+                  title={lockReasons.join(', ')}
+                  style={{
+                    fontSize: '12px',
+                    color: !isReadConfirmed || (isBusiness && !hasRevenue) ? '#b45309' : 'var(--ink-soft)',
+                    fontFamily: 'var(--font-content)',
+                    fontWeight: 500,
+                  }}
+                >
+                  {lockReasons.length === 1 ? lockReasons[0] : `${lockReasons[0]} (+${lockReasons.length - 1})`}
+                </span>
+              )}
               <PixelButton
                 variant="primary"
                 icon="check"
-                disabled={!reviewerName.trim() || !diffResult.valid || approving}
+                disabled={lockReasons.length > 0 || approving}
                 loading={approving}
-                onClick={() => setShowConfirmApproval(true)}
+                onClick={handleApprove}
               >
                 Duyệt và tiếp tục
               </PixelButton>
@@ -1446,19 +2053,6 @@ export const CleanPage: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Confirmation Modal for Approval */}
-      <ConfirmDialog
-        isOpen={showConfirmApproval}
-        title="XÁC NHẬN PHÊ DUYỆT CỔNG 1"
-        message={`Bạn có chắc chắn muốn phê duyệt tập dữ liệu sạch gồm ${diffResult.totalAfterRows.toLocaleString('vi-VN')} dòng (Người duyệt: ${reviewerName.trim()})? Thao tác này sẽ lưu trữ dữ liệu sạch chuẩn tắc và mở khóa bước Phân tích.`}
-        confirmLabel="Xác nhận duyệt"
-        confirmText="Xác nhận duyệt"
-        cancelLabel="Hủy"
-        cancelText="Hủy"
-        onConfirm={handleApprove}
-        onCancel={() => setShowConfirmApproval(false)}
-      />
 
       {/* Modal: View Affected Rows */}
       <PixelModal

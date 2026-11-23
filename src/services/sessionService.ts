@@ -234,6 +234,88 @@ export function setBusinessContext(sessionId: string, input: unknown): BusinessC
 }
 
 /**
+ * Sets or updates the selected business metrics for analysis (Prompt 2A-1 & Prompt 5B).
+ */
+export function setSessionMetricSelection(
+  sessionId: string,
+  selectedMetricIds: string[],
+  confirmed = false,
+  businessQuestions?: string[] | null
+): Session {
+  const record = sessionStore.getRecord(sessionId);
+  if (!record) {
+    throw new AppError(ERROR_CODES.NOT_FOUND, `Không tìm thấy phiên làm việc: ${sessionId}`);
+  }
+
+  const action = confirmed ? 'metrics_selection_confirmed' : 'metrics_selection_saved';
+  const detail = confirmed
+    ? `Xác nhận chọn ${selectedMetricIds.length} chỉ số để phân tích: [${selectedMetricIds.join(', ')}]`
+    : `Lưu tạm ${selectedMetricIds.length} chỉ số được chọn`;
+
+  const updatedLog = appendLog(record.log, {
+    step: 'exchange',
+    actor: 'user',
+    action,
+    detail,
+  });
+
+  const nextMeta = {
+    ...record.meta,
+    selected_metric_ids: selectedMetricIds,
+    metric_selection_confirmed: confirmed,
+  };
+  if (businessQuestions !== undefined) {
+    nextMeta.business_questions = businessQuestions;
+  }
+
+  const updatedRecord: SessionRecord = {
+    ...record,
+    updated_at: new Date().toISOString(),
+    meta: nextMeta,
+    log: updatedLog,
+  };
+
+  sessionStore.setRecord(updatedRecord);
+  return buildSessionView(updatedRecord);
+}
+
+/**
+ * Sets or clears the business analysis questions for a session (Prompt 5B).
+ */
+export function setSessionBusinessQuestions(
+  sessionId: string,
+  questions: string[] | null
+): Session {
+  const record = sessionStore.getRecord(sessionId);
+  if (!record) {
+    throw new AppError(ERROR_CODES.NOT_FOUND, `Không tìm thấy phiên làm việc: ${sessionId}`);
+  }
+
+  const updatedLog = appendLog(record.log, {
+    step: 'exchange',
+    actor: 'user',
+    action: questions && questions.length > 0 ? 'business_questions_saved' : 'business_questions_cleared',
+    detail: questions && questions.length > 0
+      ? `Lưu ${questions.length} câu hỏi phân tích: [${questions.join('; ')}]`
+      : 'Xóa câu hỏi phân tích',
+  });
+
+  const updatedRecord: SessionRecord = {
+    ...record,
+    updated_at: new Date().toISOString(),
+    meta: {
+      ...record.meta,
+      business_questions: questions,
+    },
+    log: updatedLog,
+  };
+
+  sessionStore.setRecord(updatedRecord);
+  return buildSessionView(updatedRecord);
+}
+
+
+/**
  * Merges local constants with /api/health serverless gateway response.
  * Always resolves gracefully to fallback mode if the gateway is unreachable.
  */

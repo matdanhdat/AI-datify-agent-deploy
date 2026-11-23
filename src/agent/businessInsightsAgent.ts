@@ -13,8 +13,11 @@ import { ArtifactStore } from '../core/artifacts';
 import { appendLog } from '../core/audit';
 import { sessionStore } from '../services/sessionStore';
 import { getBusinessContext } from '../services/readers';
-import type { AnalysisResult, Narrative, NarrativeSection, ReportArtifact } from '../core/schemas';
+import type { AnalysisResult, CleanArtifact, Narrative, NarrativeSection, ReportArtifact } from '../core/schemas';
 import type { BusinessAnalysisSummary } from '../core/metrics/businessAnalyzer';
+import { getActiveCleanArtifact } from '../services/cleanService';
+import { computeSelected } from '../core/metrics/businessComputeSelected';
+import { mapQuestionsToMetrics } from '../core/metrics/questionToMetrics';
 import {
   buildBusinessFactsTable,
   sanitizeDataLabel,
@@ -26,6 +29,7 @@ import {
   type BusinessInsightsReport,
 } from '../core/narrative/businessInsights';
 import { sha256Sync } from '../core/context/normalize';
+import { BUSINESS_METRIC_CATALOG } from '../core/metrics/businessCatalog';
 
 export interface GenerateBusinessInsightsOptions {
   signal?: AbortSignal;
@@ -68,37 +72,97 @@ function toCompatibleReportArtifact(
 ): ReportArtifact {
   const sections: NarrativeSection[] = [];
 
-  if (insightsReport.insights.length > 0) {
+  // 1. Two-Tier format mapping (Prompt 3B)
+  if (insightsReport.summary && insightsReport.summary.length > 0) {
     sections.push({
       id: 'overview',
-      title_vi: 'Nhận định chính từ số liệu kinh doanh',
+      title_vi: 'Tóm tắt tổng quan từ số liệu',
       source: insightsReport.source,
-      paragraphs: insightsReport.insights.slice(0, 3).map((ins, idx) => ({
-        id: `biz-ins-${idx + 1}`,
-        text: `${ins.title}: ${ins.statement}`.slice(0, 700),
-        evidence: ins.evidence_ids,
+      paragraphs: insightsReport.summary.slice(0, 3).map((text, idx) => ({
+        id: `biz-sum-${idx + 1}`,
+        text: text.slice(0, 700),
+        evidence: ['F1'],
         source: insightsReport.source,
         check_issues: [],
       })),
     });
   }
 
-  if (insightsReport.recommendations.length > 0) {
+  if (insightsReport.by_metric && Object.keys(insightsReport.by_metric).length > 0) {
+    const metricParas: NarrativeSection['paragraphs'] = [];
+    let pIdx = 1;
+    for (const [mId, sList] of Object.entries(insightsReport.by_metric)) {
+      const metricObj = BUSINESS_METRIC_CATALOG.find((m) => m.id === mId);
+      const mName = metricObj?.name || mId;
+      for (const s of sList) {
+        metricParas.push({
+          id: `biz-met-${pIdx++}`,
+          text: `[${mName}] ${s.text}`.slice(0, 700),
+          evidence: s.refs,
+          source: insightsReport.source,
+          check_issues: [],
+        });
+      }
+    }
+    if (metricParas.length > 0) {
+      sections.push({
+        id: 'comparison',
+        title_vi: 'Nhận định chi tiết theo từng chỉ số',
+        source: insightsReport.source,
+        paragraphs: metricParas,
+      });
+    }
+  }
+
+  if (insightsReport.followups && insightsReport.followups.length > 0) {
     sections.push({
       id: 'watch',
-      title_vi: 'Đề xuất hành động có căn cứ',
+      title_vi: 'Gợi ý theo dõi trọng điểm',
       source: insightsReport.source,
-      paragraphs: insightsReport.recommendations.slice(0, 3).map((rec, idx) => ({
-        id: `biz-rec-${idx + 1}`,
-        text: `${rec.action} (${rec.rationale})`.slice(0, 700),
-        evidence: rec.evidence_ids,
+      paragraphs: insightsReport.followups.slice(0, 2).map((text, idx) => ({
+        id: `biz-fol-${idx + 1}`,
+        text: text.slice(0, 700),
+        evidence: ['F1'],
         source: insightsReport.source,
         check_issues: [],
       })),
     });
   }
 
-  if (insightsReport.limitations.length > 0) {
+  // 2. Legacy fallback mapping if two-tier fields empty
+  if (sections.length === 0) {
+    if (insightsReport.insights && insightsReport.insights.length > 0) {
+      sections.push({
+        id: 'overview',
+        title_vi: 'Nhận định chính từ số liệu kinh doanh',
+        source: insightsReport.source,
+        paragraphs: insightsReport.insights.slice(0, 3).map((ins, idx) => ({
+          id: `biz-ins-${idx + 1}`,
+          text: `${ins.title}: ${ins.statement}`.slice(0, 700),
+          evidence: ins.evidence_ids,
+          source: insightsReport.source,
+          check_issues: [],
+        })),
+      });
+    }
+
+    if (insightsReport.recommendations && insightsReport.recommendations.length > 0) {
+      sections.push({
+        id: 'watch',
+        title_vi: 'Đề xuất hành động có căn cứ',
+        source: insightsReport.source,
+        paragraphs: insightsReport.recommendations.slice(0, 3).map((rec, idx) => ({
+          id: `biz-rec-${idx + 1}`,
+          text: `${rec.action} (${rec.rationale})`.slice(0, 700),
+          evidence: rec.evidence_ids,
+          source: insightsReport.source,
+          check_issues: [],
+        })),
+      });
+    }
+  }
+
+  if (insightsReport.limitations && insightsReport.limitations.length > 0) {
     sections.push({
       id: 'limits',
       title_vi: 'Giới hạn của tập dữ liệu',
@@ -179,6 +243,34 @@ export async function generateBusinessInsights(
   const droppedRowsDuringClean = Math.max(0, rawRows - summary.total_rows);
 
   const factsTable = buildBusinessFactsTable(summary, { droppedRowsDuringClean });
+
+  const cleanArtifact =
+    getActiveCleanArtifact(sessionId) ||
+    ArtifactStore.get<CleanArtifact>(sessionId, 'clean_v1') ||
+    ArtifactStore.get<CleanArtifact>(sessionId, 'clean');
+
+  if (cleanArtifact?.businessTable) {
+    const selectedIds =
+      (record?.meta?.selected_metric_ids as string[] | undefined) ||
+      BUSINESS_METRIC_CATALOG.map((m) => m.id);
+    const selectedOutput = computeSelected(cleanArtifact.businessTable, selectedIds, {
+      customRoles: record?.meta?.custom_roles as any,
+    });
+    factsTable.confidence = selectedOutput.confidence;
+    factsTable.data_limits = selectedOutput.dataLimits;
+    factsTable.metrics_result = selectedOutput.metrics;
+
+    const bQuestions = record?.meta?.business_questions as string[] | undefined;
+    if (bQuestions && bQuestions.length > 0) {
+      const fRecord: Record<string, { feasible: boolean; reason?: string }> = {};
+      BUSINESS_METRIC_CATALOG.forEach((m) => {
+        fRecord[m.id] = { feasible: Boolean(selectedOutput.metrics?.[m.id]?.feasible) };
+      });
+      const qRes = mapQuestionsToMetrics(bQuestions, fRecord);
+      factsTable.question_metric_ids = qRes.tickUnion;
+    }
+  }
+
   ArtifactStore.put(sessionId, 'business_facts', factsTable);
 
   const rawFeedback = options?.reviewerFeedback ?? getGate2BusinessFeedback(sessionId) ?? '';
@@ -234,6 +326,58 @@ export async function generateBusinessInsights(
   if (userCtx?.role) contextParts.push(`Vai trò: [DATA:${sanitizeDataLabel(userCtx.role, 50)}]`);
   if (userCtx?.extra_info) contextParts.push(`Mô hình: [DATA:${sanitizeDataLabel(userCtx.extra_info, 360)}]`);
 
+  // Prompt 2A-2: If analysis_questions is empty, generate prompt from selected metric names
+  let questions = (userCtx?.analysis_questions || []).slice(0, 8).map((q) => sanitizeDataLabel(q, 180));
+  const sessionRec = sessionStore.getRecord(sessionId);
+  if (questions.length === 0) {
+    const selectedIds = sessionRec?.meta?.selected_metric_ids;
+    if (selectedIds && Array.isArray(selectedIds) && selectedIds.length > 0) {
+      const metricNames = selectedIds
+        .map((id) => {
+          const m = BUSINESS_METRIC_CATALOG.find((item) => item.id === id);
+          return m?.name || (m as any)?.label_vi;
+        })
+        .filter(Boolean) as string[];
+      if (metricNames.length > 0) {
+        questions = [`Phân tích các chỉ số: ${metricNames.join(', ')}`];
+      }
+    }
+  }
+
+  // Derive has_* flags and metricEventMap (Prompt 3B)
+  const has_margin = factsTable.facts.some(
+    (f) => f.label_vi.includes('Biên') || f.label_vi.includes('lợi nhuận') || f.label_vi.includes('giá vốn')
+  );
+  const has_orders = factsTable.facts.some(
+    (f) => f.label_vi.includes('số đơn') || f.label_vi.includes('Đơn hàng')
+  );
+  const has_product = factsTable.facts.some((f) => f.category === 'product');
+  const has_channel = factsTable.facts.some((f) => f.category === 'channel');
+  const has_region = factsTable.facts.some((f) => f.category === 'region');
+  const has_time = factsTable.facts.some((f) => f.category === 'month');
+
+  const flags = {
+    has_margin,
+    has_orders,
+    has_product,
+    has_channel,
+    has_region,
+    has_time,
+  };
+
+  const metricEventMap: Record<string, string[]> = {};
+  if (factsTable.metrics_result) {
+    for (const [mId, mRes] of Object.entries(factsTable.metrics_result)) {
+      if ((mRes as any)?.events && Array.isArray((mRes as any).events)) {
+        metricEventMap[mId] = (mRes as any).events.map((e: any) => e.id);
+      }
+    }
+  }
+
+  const templateReport = buildTemplateBusinessInsights(factsTable, {
+    feedback_applied: safeFeedback || undefined,
+  });
+
   const payload = {
     facts_hash: factsTable.hash,
     period: factsTable.period,
@@ -244,41 +388,78 @@ export async function generateBusinessInsights(
       display: f.display,
       unit: f.unit,
     })),
-    questions: (userCtx?.analysis_questions || []).slice(0, 8).map((q) => sanitizeDataLabel(q, 180)),
+    findings: templateReport.findings.map((f) => ({
+      rule_id: f.rule_id,
+      title: f.title,
+      evidence: f.evidence,
+      meaning: f.meaning,
+      opportunity_risk: f.opportunity_risk,
+      action: f.action,
+      kpi_metric_id: f.kpi_metric_id,
+      check_after: f.check_after,
+      source_refs: f.source_refs,
+    })),
+    questions,
     context_note: contextParts.length > 0 ? contextParts.join(' | ').slice(0, 580) : undefined,
     reviewer_feedback: safeFeedback || undefined,
+    has_margin,
+    has_orders,
+    has_product,
+    has_channel,
+    has_region,
+    has_time,
+    confidence_level: factsTable.confidence?.level_vi || 'CAO',
+    data_limits: factsTable.data_limits || [],
   };
+
+  // Client timeout capped at 9,000 ms (Prompt 3B)
+  const timeoutMs = 9000;
+  const timeoutController = new AbortController();
+  let clientTimedOut = false;
+  const timeoutId = setTimeout(() => {
+    clientTimedOut = true;
+    timeoutController.abort(new Error('LLM_TIMEOUT'));
+  }, timeoutMs);
+
+  if (options?.signal) {
+    options.signal.addEventListener('abort', () => timeoutController.abort(options.signal?.reason));
+  }
 
   // Call AI with max 1 retry (400ms backoff) on transient upstream errors; never retry on abort or timeout
   let lastError: any = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    if (options?.signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (options?.signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
 
-    try {
-      const res = await callAi<unknown>('business_insights', payload, options?.signal);
-      const latencyMs = Date.now() - startMs;
-      const verified = verifyBusinessInsightsOutput(res.data, factsTable, {
-        model: res.model || aiStatus.model || 'gemini',
-        latency_ms: res.latency_ms ?? latencyMs,
-        feedback_applied: safeFeedback || undefined,
-      });
-      return commitAndLog(verified);
-    } catch (err: any) {
-      lastError = err;
-      const isAborted = options?.signal?.aborted || err?.details?.reason === 'aborted' || err?.status === 499;
-      if (isAborted) {
-        throw err;
+      try {
+        const res = await callAi<unknown>('business_insights', payload, timeoutController.signal);
+        const latencyMs = Date.now() - startMs;
+        const verified = verifyBusinessInsightsOutput(res.data, factsTable, {
+          model: res.model || aiStatus.model || 'gemini',
+          latency_ms: res.latency_ms ?? latencyMs,
+          feedback_applied: safeFeedback || undefined,
+          flags,
+          metricEventMap,
+        });
+        return commitAndLog(verified);
+      } catch (err: any) {
+        lastError = err;
+        if (options?.signal?.aborted) {
+          throw err;
+        }
+        const isTimeout = clientTimedOut || err?.code === 'LLM_TIMEOUT' || err?.status === 504 || err?.name === 'AbortError';
+        const isClientErr = err?.status && err.status >= 400 && err.status < 500 && err.status !== 429;
+        if (isTimeout || isClientErr || attempt === 1) {
+          break;
+        }
+        // Single short backoff before retry #1
+        await new Promise((r) => setTimeout(r, 400));
       }
-      const isTimeout = err?.code === 'LLM_TIMEOUT' || err?.status === 504;
-      const isClientErr = err?.status && err.status >= 400 && err.status < 500 && err.status !== 429;
-      if (isTimeout || isClientErr || attempt === 1) {
-        break;
-      }
-      // Single short backoff before retry #1
-      await new Promise((r) => setTimeout(r, 400));
     }
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   // Fallback to deterministic template on any AI failure / timeout (never blocks user or Gate 2!)

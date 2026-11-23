@@ -18,6 +18,9 @@ export interface SessionRecordMeta {
   report_status?: ReportStatus;
   business_context?: BusinessContext | null;
   context_hash?: string | null;
+  selected_metric_ids?: string[] | null;
+  business_questions?: string[] | null;
+  metric_selection_confirmed?: boolean | null;
   [key: string]: unknown;
 }
 
@@ -47,6 +50,15 @@ export const STEP_DEFINITIONS: Array<[StepKey, string]> = [
   ['report', 'Báo cáo'],
 ];
 
+export const STEP_DEFINITIONS_BUSINESS: Array<[StepKey, string]> = [
+  ['upload', 'Dữ liệu'],
+  ['clean', 'Làm sạch'],
+  ['review', 'Duyệt'],
+  ['exchange', 'Trao đổi'],
+  ['analyze', 'Phân tích'],
+  ['report', 'Báo cáo'],
+];
+
 export const STEP_STATUS_BY_STATE: Record<SessionState, StepStatus[]> = {
   created: ['current', 'locked', 'locked', 'locked', 'locked'],
   uploaded: ['done', 'current', 'locked', 'locked', 'locked'],
@@ -56,6 +68,20 @@ export const STEP_STATUS_BY_STATE: Record<SessionState, StepStatus[]> = {
   report_approved: ['done', 'done', 'done', 'done', 'done'],
 };
 
+export const STEP_STATUS_BY_STATE_BUSINESS: Record<SessionState, (meta?: SessionRecordMeta) => StepStatus[]> = {
+  created: () => ['current', 'locked', 'locked', 'locked', 'locked', 'locked'],
+  uploaded: () => ['done', 'current', 'locked', 'locked', 'locked', 'locked'],
+  cleaning_review: () => ['done', 'done', 'current', 'locked', 'locked', 'locked'],
+  clean_approved: (meta) => {
+    const isConfirmed = Boolean(meta?.metric_selection_confirmed);
+    return isConfirmed
+      ? ['done', 'done', 'done', 'done', 'current', 'locked']
+      : ['done', 'done', 'done', 'current', 'locked', 'locked'];
+  },
+  analyzed: () => ['done', 'done', 'done', 'done', 'done', 'current'],
+  report_approved: () => ['done', 'done', 'done', 'done', 'done', 'done'],
+};
+
 export const EXTRA_PAGES_BY_STATE: Record<SessionState, string[]> = {
   created: [],
   uploaded: ['clean'],
@@ -63,6 +89,18 @@ export const EXTRA_PAGES_BY_STATE: Record<SessionState, string[]> = {
   clean_approved: ['clean', 'analyze'],
   analyzed: ['clean', 'analyze', 'report'],
   report_approved: ['clean', 'analyze', 'report'],
+};
+
+export const EXTRA_PAGES_BUSINESS: Record<SessionState, (meta?: SessionRecordMeta) => string[]> = {
+  created: () => [],
+  uploaded: () => ['clean'],
+  cleaning_review: () => ['clean'],
+  clean_approved: (meta) => {
+    const isConfirmed = Boolean(meta?.metric_selection_confirmed);
+    return isConfirmed ? ['clean', 'exchange', 'analyze'] : ['clean', 'exchange'];
+  },
+  analyzed: () => ['clean', 'exchange', 'analyze', 'report'],
+  report_approved: () => ['clean', 'exchange', 'analyze', 'report'],
 };
 
 // Transition matrix
@@ -106,21 +144,41 @@ export const TRANSITION_GUIDANCE: Record<string, string> = {
  */
 export function buildSessionView(record: SessionRecord): Session {
   const state = record.state;
-  const stepStatuses = STEP_STATUS_BY_STATE[state] || [
-    'current',
-    'locked',
-    'locked',
-    'locked',
-    'locked',
-  ];
+  const isBusiness = record.meta.dataset
+    ? record.meta.dataset.kind === 'business'
+    : Boolean(record.meta.business_context);
 
-  const steps: StepInfo[] = STEP_DEFINITIONS.map(([key, label_vi], idx) => ({
-    key,
-    label_vi,
-    status: stepStatuses[idx] || 'locked',
-  }));
+  let steps: StepInfo[];
+  let extraPages: string[];
 
-  const extraPages = EXTRA_PAGES_BY_STATE[state] || [];
+  if (isBusiness) {
+    const getStatuses = STEP_STATUS_BY_STATE_BUSINESS[state] || STEP_STATUS_BY_STATE_BUSINESS.created;
+    const stepStatuses = getStatuses(record.meta);
+    steps = STEP_DEFINITIONS_BUSINESS.map(([key, label_vi], idx) => ({
+      key,
+      label_vi,
+      status: stepStatuses[idx] || 'locked',
+    }));
+    const getExtra = EXTRA_PAGES_BUSINESS[state] || EXTRA_PAGES_BUSINESS.created;
+    extraPages = getExtra(record.meta);
+  } else {
+    const stepStatuses = STEP_STATUS_BY_STATE[state] || [
+      'current',
+      'locked',
+      'locked',
+      'locked',
+      'locked',
+    ];
+
+    steps = STEP_DEFINITIONS.map(([key, label_vi], idx) => ({
+      key,
+      label_vi,
+      status: stepStatuses[idx] || 'locked',
+    }));
+
+    extraPages = EXTRA_PAGES_BY_STATE[state] || [];
+  }
+
   // Ensure unique list preserving order
   const unlocked_pages = Array.from(new Set([...BASE_UNLOCKED_PAGES, ...extraPages]));
 
@@ -137,6 +195,9 @@ export function buildSessionView(record: SessionRecord): Session {
     steps,
     unlocked_pages,
     business_context: record.meta.business_context || null,
+    selected_metric_ids: (record.meta.selected_metric_ids as string[] | null) || null,
+    business_questions: (record.meta.business_questions as string[] | null) || null,
+    metric_selection_confirmed: Boolean(record.meta.metric_selection_confirmed),
   };
 }
 
@@ -201,14 +262,17 @@ export function transition(record: SessionRecord, event: string): TransitionResu
   if (toState === 'uploaded') {
     nextMeta.clean_version = null;
     nextMeta.report_status = 'none';
+    delete nextMeta.metric_selection_confirmed;
+    delete nextMeta.selected_metric_ids;
     delete nextMeta.proposals;
     delete nextMeta.metrics;
     delete nextMeta.charts;
     delete nextMeta.report;
     cleanupStage = 'upload_ok';
   } else if (toState === 'cleaning_review' && event === 'reclean') {
-    // Keep clean_version history, but invalidate analysis and report
+    // Keep clean_version history and selected_metric_ids, but invalidate selection confirmation, analysis and report
     nextMeta.report_status = 'none';
+    delete nextMeta.metric_selection_confirmed;
     delete nextMeta.metrics;
     delete nextMeta.charts;
     delete nextMeta.report;

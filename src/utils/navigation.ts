@@ -42,6 +42,8 @@ export function getStepPath(stepKey: StepKey): string {
     case 'clean':
     case 'review':
       return '/lam-sach';
+    case 'exchange':
+      return '/trao-doi';
     case 'analyze':
       return '/phan-tich';
     case 'report':
@@ -51,7 +53,7 @@ export function getStepPath(stepKey: StepKey): string {
   }
 }
 
-export function getCurrentStepPath(state: SessionState): string {
+export function getCurrentStepPath(state: SessionState, isBusiness = false, metricConfirmed = false): string {
   switch (state) {
     case 'created':
       return '/nap-du-lieu';
@@ -59,7 +61,7 @@ export function getCurrentStepPath(state: SessionState): string {
     case 'cleaning_review':
       return '/lam-sach';
     case 'clean_approved':
-      return '/phan-tich';
+      return isBusiness && !metricConfirmed ? '/trao-doi' : '/phan-tich';
     case 'analyzed':
     case 'report_approved':
       return '/bao-cao';
@@ -72,6 +74,7 @@ export const PAGE_TITLES: Record<string, string> = {
   home: 'Trang chủ',
   upload: 'Nạp dữ liệu',
   clean: 'Làm sạch & Phê duyệt',
+  exchange: 'Trao đổi & Chọn chỉ số',
   analyze: 'Phân tích & Biểu đồ',
   report: 'Báo cáo & Nhận định',
   agent: 'Tiến trình Agent',
@@ -89,7 +92,12 @@ export interface LockExplanation {
   actionPath: string;
 }
 
-export function getLockExplanation(pageKey: string, currentState: SessionState): LockExplanation {
+export function getLockExplanation(
+  pageKey: string,
+  currentState: SessionState,
+  isBusiness = false,
+  metricConfirmed = false
+): LockExplanation {
   const pageTitle = PAGE_TITLES[pageKey] || pageKey;
   const currentStateVi = getStateLabelVi(currentState);
 
@@ -105,6 +113,18 @@ export function getLockExplanation(pageKey: string, currentState: SessionState):
     };
   }
 
+  if (pageKey === 'exchange') {
+    return {
+      pageKey,
+      pageTitle,
+      currentState,
+      currentStateVi,
+      message: 'Bạn cần duyệt dữ liệu sạch tại Cổng duyệt 1 trước khi tiến hành trao đổi và chọn chỉ số.',
+      actionLabel: 'Đến bước duyệt dữ liệu',
+      actionPath: '/lam-sach',
+    };
+  }
+
   if (pageKey === 'analyze') {
     if (currentState === 'created' || currentState === 'uploaded') {
       return {
@@ -115,6 +135,28 @@ export function getLockExplanation(pageKey: string, currentState: SessionState):
         message: 'Bạn cần nạp dữ liệu và phê duyệt dữ liệu sạch trước khi phân tích.',
         actionLabel: 'Đến bước nạp dữ liệu',
         actionPath: '/nap-du-lieu',
+      };
+    }
+    if (currentState === 'cleaning_review') {
+      return {
+        pageKey,
+        pageTitle,
+        currentState,
+        currentStateVi,
+        message: 'Bạn cần duyệt dữ liệu sạch tại Cổng duyệt 1 trước khi tiến hành phân tích.',
+        actionLabel: 'Đến bước duyệt dữ liệu',
+        actionPath: '/lam-sach',
+      };
+    }
+    if (isBusiness && !metricConfirmed) {
+      return {
+        pageKey,
+        pageTitle,
+        currentState,
+        currentStateVi,
+        message: 'Bạn cần hoàn thành bước Trao đổi và chọn các chỉ số phân tích trước khi xem kết quả phân tích.',
+        actionLabel: 'Đến bước trao đổi',
+        actionPath: '/trao-doi',
       };
     }
     return {

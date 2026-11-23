@@ -42,6 +42,7 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
 
 const UploadPage = lazyWithRetry(() => import('./pages/UploadPage').then((m) => ({ default: m.UploadPage })));
 const CleanPage = lazyWithRetry(() => import('./pages/CleanPage').then((m) => ({ default: m.CleanPage })));
+const ExchangePage = lazyWithRetry(() => import('./pages/ExchangePage').then((m) => ({ default: m.ExchangePage })));
 const AnalyzePage = lazyWithRetry(() => import('./pages/AnalyzePage').then((m) => ({ default: m.AnalyzePage })));
 const ReportPage = lazyWithRetry(() => import('./pages/ReportPage').then((m) => ({ default: m.ReportPage })));
 const AgentPage = lazyWithRetry(() => import('./pages/AgentPage').then((m) => ({ default: m.AgentPage })));
@@ -54,6 +55,12 @@ export const AppRouter: React.FC = () => {
   const { session, loading, createNewSession, isPageUnlocked } = useSession();
   const [lockExplanation, setLockExplanation] = useState<LockExplanation | null>(null);
   const [chatOpen, setChatOpen] = useState(() => typeof window !== 'undefined' && window.location.search.includes('chat=1'));
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__navigate = navigate;
+    }
+  }, [navigate]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -173,6 +180,19 @@ export const AppRouter: React.FC = () => {
                     onLockedAccess={handleLockedAccess}
                   >
                     <CleanPage />
+                  </RouteGuard>
+                }
+              />
+              <Route
+                path="/trao-doi"
+                element={
+                  <RouteGuard
+                    pageKey="exchange"
+                    session={session}
+                    loading={loading}
+                    onLockedAccess={handleLockedAccess}
+                  >
+                    <ExchangePage />
                   </RouteGuard>
                 }
               />

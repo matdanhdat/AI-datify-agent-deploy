@@ -123,7 +123,14 @@ function resolveRevenueColumn(measures: BusinessColumn[]): { item: ResolvedRoleI
     'tang truong',
     'growth',
     'don gia',
+    'gia ban',
+    'gia niem yet',
+    'unit price',
+    'price',
     'chiet khau',
+    'thoi gian',
+    'tinh trang',
+    'ky hieu',
   ];
 
   const candidates: MatchCandidate[] = [];
@@ -138,7 +145,13 @@ function resolveRevenueColumn(measures: BusinessColumn[]): { item: ResolvedRoleI
       candidates.push({ col, score: 80, reason: `Khớp "${col.label}" (Doanh thu)` });
     } else if (hasWordPhrase(norm, 'doanh so') || hasWordPhrase(norm, 'sales')) {
       candidates.push({ col, score: 70, reason: `Khớp "${col.label}" (Doanh số)` });
-    } else if (hasWordPhrase(norm, 'thanh tien') || hasWordPhrase(norm, 'tong tien')) {
+    } else if (
+      hasWordPhrase(norm, 'thanh tien') ||
+      hasWordPhrase(norm, 'tong tien') ||
+      hasWordPhrase(norm, 'gia tri hop dong') ||
+      hasWordPhrase(norm, 'gia tri don hang') ||
+      hasWordPhrase(norm, 'amount')
+    ) {
       candidates.push({ col, score: 60, reason: `Khớp "${col.label}" (Thành tiền/Tổng tiền)` });
     }
   }
@@ -181,6 +194,19 @@ function resolveRevenueColumn(measures: BusinessColumn[]): { item: ResolvedRoleI
  */
 function resolveOrdersColumn(measures: BusinessColumn[]): { item: ResolvedRoleItem; warning?: string } {
   const EXCLUSIONS = [
+    'ma khach hang',
+    'ma kh',
+    'customer id',
+    'so dien thoai',
+    'sdt',
+    'phone',
+    'telephone',
+    'ma don hang',
+    'ma don',
+    'order id',
+    'ma',
+    'id',
+    'stt',
     'gia tri',
     'gia tri don',
     'aov',
@@ -200,13 +226,29 @@ function resolveOrdersColumn(measures: BusinessColumn[]): { item: ResolvedRoleIt
     if (
       hasWordPhrase(norm, 'so don hang') ||
       hasWordPhrase(norm, 'so luong don') ||
-      hasWordPhrase(norm, 'order count')
+      hasWordPhrase(norm, 'order count') ||
+      hasWordPhrase(norm, 'so hop dong') ||
+      hasWordPhrase(norm, 'so can ban') ||
+      hasWordPhrase(norm, 'so xe ban')
     ) {
       candidates.push({ col, score: 100, reason: `Khớp chính xác "${col.label}" (Số đơn hàng)` });
-    } else if (hasWordPhrase(norm, 'so don') || hasWordPhrase(norm, 'so giao dich')) {
-      candidates.push({ col, score: 85, reason: `Khớp "${col.label}" (Số đơn)` });
-    } else if (hasWordPhrase(norm, 'don hang') || hasWordPhrase(norm, 'orders')) {
-      candidates.push({ col, score: 70, reason: `Khớp "${col.label}" (Đơn hàng)` });
+    } else if (
+      hasWordPhrase(norm, 'so don') ||
+      hasWordPhrase(norm, 'so giao dich') ||
+      hasWordPhrase(norm, 'so luong ban') ||
+      hasWordPhrase(norm, 'sl ban') ||
+      hasWordPhrase(norm, 'units sold')
+    ) {
+      candidates.push({ col, score: 90, reason: `Khớp "${col.label}" (Số đơn)` });
+    } else if (
+      hasWordPhrase(norm, 'don hang') ||
+      hasWordPhrase(norm, 'orders') ||
+      hasWordPhrase(norm, 'so luong') ||
+      hasWordPhrase(norm, 'sl') ||
+      hasWordPhrase(norm, 'qty') ||
+      hasWordPhrase(norm, 'quantity')
+    ) {
+      candidates.push({ col, score: 80, reason: `Khớp "${col.label}" (Số lượng)` });
     }
   }
 
@@ -250,10 +292,17 @@ function resolveCogsColumn(measures: BusinessColumn[]): { item: ResolvedRoleItem
   const EXCLUSIONS = [
     'doanh thu',
     'loi nhuan',
+    'chi phi marketing',
+    'chi phi van chuyen',
     'van chuyen',
+    'shipping',
     'quang cao',
+    'ads',
     'marketing',
     'mat bang',
+    'nhan su',
+    'luong',
+    'van hanh',
   ];
 
   const candidates: MatchCandidate[] = [];
@@ -265,11 +314,17 @@ function resolveCogsColumn(measures: BusinessColumn[]): { item: ResolvedRoleItem
     if (
       hasWordPhrase(norm, 'gia von hang ban') ||
       hasWordPhrase(norm, 'cost of goods sold') ||
-      hasWordPhrase(norm, 'cost of goods')
+      hasWordPhrase(norm, 'cost of goods') ||
+      hasWordPhrase(norm, 'gvhb') ||
+      hasWordPhrase(norm, 'chi phi gia von') ||
+      hasWordPhrase(norm, 'chi phi von') ||
+      hasWordPhrase(norm, 'chi phi nhap hang') ||
+      hasWordPhrase(norm, 'gia thanh') ||
+      hasWordPhrase(norm, 'chi phi san xuat')
     ) {
       candidates.push({ col, score: 100, reason: `Khớp chính xác "${col.label}" (Giá vốn hàng bán)` });
-    } else if (hasWordPhrase(norm, 'chi phi gia von')) {
-      candidates.push({ col, score: 95, reason: `Khớp chính xác "${col.label}" (Chi phí giá vốn)` });
+    } else if (hasWordPhrase(norm, 'gia nhap')) {
+      candidates.push({ col, score: 90, reason: `Khớp "${col.label}" (Giá nhập)` });
     } else if (hasWordPhrase(norm, 'gia von') || hasWordPhrase(norm, 'cogs') || hasWordPhrase(norm, 'tien von')) {
       candidates.push({ col, score: 80, reason: `Khớp "${col.label}" (Giá vốn)` });
     }
@@ -461,9 +516,25 @@ function resolveTimeColumn(table: BusinessTable): ResolvedRoleItem {
   }
 
   const dims = table.columns.filter((c) => c.role === 'dimension');
-  const TIME_KEYWORDS = ['thang', 'ngay', 'nam', 'quy', 'date', 'month', 'year', 'quarter', 'time'];
+  const TIME_EXCLUSIONS = ['thoi gian giao hang', 'giao hang'];
+  const TIME_KEYWORDS = [
+    'thang ban',
+    'thoi gian ban',
+    'thoi gian',
+    'ky bao cao',
+    'month',
+    'thang',
+    'ngay',
+    'nam',
+    'quy',
+    'date',
+    'year',
+    'quarter',
+    'time',
+  ];
   for (const col of dims) {
     const norm = normalizeRoleText(col.label);
+    if (hasExclusion(norm, TIME_EXCLUSIONS)) continue;
     if (TIME_KEYWORDS.some((kw) => hasWordPhrase(norm, kw))) {
       return {
         status: 'tìm thấy',
@@ -523,7 +594,14 @@ export function resolveBusinessRoles(table: BusinessTable): BusinessResolvedRole
       'tang truong',
       'growth',
       'don gia',
+      'gia ban',
+      'gia niem yet',
+      'unit price',
+      'price',
       'chiet khau',
+      'thoi gian',
+      'tinh trang',
+      'ky hieu',
     ];
     const assignedCols = new Set([ordersRes.col, cogsRes.col, profitRes.col].filter(Boolean));
     const unassignedMeasures = measures.filter(
@@ -564,7 +642,7 @@ export function resolveBusinessRoles(table: BusinessTable): BusinessResolvedRole
   // 3. Resolve Dimensions (Channel, Region, Product, Time)
   const channelResWrap = resolveDimensionColumn(
     dims,
-    ['kenh ban', 'kenh phan phoi', 'sales channel', 'kenh', 'channel'],
+    ['kenh ban hang', 'hinh thuc ban', 'nen tang', 'channel', 'kenh ban', 'kenh phan phoi', 'sales channel', 'kenh'],
     'Kênh bán',
     BUSINESS_ROLE_WARNINGS.MISSING_CHANNEL
   );
@@ -573,7 +651,7 @@ export function resolveBusinessRoles(table: BusinessTable): BusinessResolvedRole
 
   const regionResWrap = resolveDimensionColumn(
     dims,
-    ['khu vuc', 'vung', 'mien', 'region', 'area'],
+    ['khu vuc', 'vung', 'mien', 'tinh thanh', 'thanh pho', 'chi nhanh', 'dia ban', 'region', 'city', 'area'],
     'Khu vực',
     BUSINESS_ROLE_WARNINGS.MISSING_REGION
   );
@@ -582,7 +660,21 @@ export function resolveBusinessRoles(table: BusinessTable): BusinessResolvedRole
 
   const productResWrap = resolveDimensionColumn(
     dims,
-    ['ten san pham', 'mat hang', 'nhom hang', 'product name', 'san pham', 'product'],
+    [
+      'mat hang',
+      'du an',
+      'mau xe',
+      'dong xe',
+      'model',
+      'sku',
+      'loai hang',
+      'nhom hang',
+      'danh muc',
+      'ten san pham',
+      'san pham',
+      'product name',
+      'product',
+    ],
     'Sản phẩm',
     BUSINESS_ROLE_WARNINGS.MISSING_PRODUCT
   );

@@ -17,6 +17,8 @@ import { calculateMetrics, extractSymbolSeries } from '../core/metrics/calculato
 import { generateCharts } from '../core/metrics/charts';
 import { analyzeBusinessTable } from '../core/metrics/businessAnalyzer';
 import { computeAnalysisHash } from '../core/metrics/canonicalAnalysisHash';
+import { computeSelected } from '../core/metrics/businessComputeSelected';
+import { BUSINESS_METRIC_CATALOG } from '../core/metrics/businessCatalog';
 import { runInWorker, type WorkerRunnerOptions } from '../workers/workerRunner';
 import type {
   AnalysisWorkerInput,
@@ -233,6 +235,13 @@ export async function runAnalysis(
   perfMark('m3_analyze_start');
 
   try {
+    const sessionSelected = record.meta?.selected_metric_ids as string[] | undefined;
+    const metricIdsToCompute = (config as any)?.selectedMetricIds && (config as any).selectedMetricIds.length > 0
+      ? (config as any).selectedMetricIds
+      : (sessionSelected && sessionSelected.length > 0)
+      ? sessionSelected
+      : BUSINESS_METRIC_CATALOG.map((m) => m.id);
+
     const runInThreadAnalysis = async (): Promise<AnalysisResult> => {
       if (isBusiness) {
         const table = cleanArtifact.businessTable!;
@@ -254,6 +263,11 @@ export async function runAnalysis(
           message: 'Đang tính mã băm chuẩn tắc SHA-256...',
         });
         const analysisHash = await computeAnalysisHash(bizOut.metrics);
+
+        // Compute selected catalog metrics (Prompt 1D-2 & 2A-1 fallback/in-thread)
+        const selectedOut = computeSelected(table, metricIdsToCompute);
+        (bizOut.summary as any).selected_analysis = selectedOut;
+
         options?.onProgress?.({
           stage: 'done',
           percent: 100,
@@ -282,6 +296,7 @@ export async function runAnalysis(
           },
           warnings: bizOut.warnings,
           business_analysis: bizOut.summary,
+          selected_analysis: selectedOut,
         };
       }
 
@@ -382,6 +397,7 @@ export async function runAnalysis(
         const input: AnalysisWorkerInput = {
           cleanArtifact,
           config: validConfig,
+          selectedMetricIds: metricIdsToCompute,
           __simulateHang: options?.__simulateHang,
         };
         result = await runInWorker<AnalysisWorkerInput, AnalysisResult, AnalysisWorkerProgress>(

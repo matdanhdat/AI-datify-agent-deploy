@@ -1,7 +1,7 @@
 # BỘ BẰNG CHỨNG HỆ THỐNG VÀ KIỂM CHỨNG TOÀN DIỆN (BANG_CHUNG.md)
 
 > **Tài liệu sinh tự động:** `scripts/evidence_report.mjs`
-> **Thời điểm xuất bản:** 2026-11-19T11:17:52.052Z
+> **Thời điểm xuất bản:** 2026-11-23T18:20:35.972Z
 > **Cam kết:** Toàn bộ dữ liệu dưới đây được chạy từ mã nguồn thật, số liệu thật, không sửa tay.
 
 ---
@@ -298,21 +298,21 @@ Bạn là bộ phận lập kế hoạch định lượng cho Pixel Trading Agen
 
 ### 6. Thống kê kích thước Bundle & Phân mảnh tài nguyên (dist/)
 
-- **Tổng dung lượng thư mục dist/:** `6801.6 KB` (110 tệp)
-- **Ngân sách tối đa cho phép:** `25.0 MB` (Thực tế đạt: **6.64 MB** - Đạt chuẩn 100%)
+- **Tổng dung lượng thư mục dist/:** `7012.9 KB` (113 tệp)
+- **Ngân sách tối đa cho phép:** `25.0 MB` (Thực tế đạt: **6.85 MB** - Đạt chuẩn 100%)
 
 | Phân mảnh tệp (Chunk Name) | Dung lượng thô (Raw) | Dung lượng Gzip | Phân loại |
 |---|:---:|:---:|:---:|
-| `assets\BusinessInsightsPanel-UuCVFTuq.js` | 1182.6 KB | **382.1 KB** | Core App Bundle |
-| `assets\validate.worker-B-p5BUPm.js` | 989.2 KB | **288.5 KB** | Web Worker |
+| `assets\BusinessInsightsPanel-pPYx5k12.js` | 1175.1 KB | **380.7 KB** | Core App Bundle |
+| `assets\validate.worker-Dnez07QO.js` | 997.3 KB | **291.0 KB** | Web Worker |
 | `assets\excel-engine-B5U9YJAX.js` | 917.3 KB | **264.7 KB** | Core App Bundle |
-| `assets\index-CYqXreK3.js` | 308.6 KB | **95.4 KB** | Core App Bundle |
-| `assets\ReportPage-DARll4iG.js` | 82.5 KB | **23.6 KB** | Core App Bundle |
-| `assets\analysis.worker-fxha9euz.js` | 76.4 KB | **21.5 KB** | Web Worker |
-| `assets\AnalyzePage-DcS4UQsm.js` | 74.3 KB | **20.6 KB** | Core App Bundle |
-| `assets\index-BJxJxo8e.js` | 52.5 KB | **16.3 KB** | Core App Bundle |
-| `assets\UploadPage-BRVvdIHD.js` | 49.8 KB | **13.4 KB** | Core App Bundle |
-| `assets\CleanPage-B50hkCHI.js` | 44.6 KB | **12.4 KB** | Core App Bundle |
+| `assets\index-CeeVKvwS.js` | 312.6 KB | **96.4 KB** | Core App Bundle |
+| `assets\analysis.worker-2kXURpuO.js` | 110.0 KB | **29.0 KB** | Web Worker |
+| `assets\ReportPage-BC-SnL9K.js` | 89.0 KB | **25.2 KB** | Core App Bundle |
+| `assets\AnalyzePage-BR8FGjDb.js` | 81.9 KB | **22.3 KB** | Core App Bundle |
+| `assets\CleanPage-xrxFHuL4.js` | 74.6 KB | **20.4 KB** | Core App Bundle |
+| `assets\businessComputeSelected-7l9vg169.js` | 70.1 KB | **18.2 KB** | Core App Bundle |
+| `assets\businessCleaner-BXKLIhUe.js` | 66.2 KB | **19.7 KB** | Core App Bundle |
 
 
 ---
@@ -323,7 +323,7 @@ Bạn là bộ phận lập kế hoạch định lượng cho Pixel Trading Agen
 
 | Tác vụ kiểm thử hiệu năng | Quy mô dữ liệu | Thời gian thực thi | Ngưỡng cho phép | Đánh giá |
 |---|---|:---:|:---:|:---:|
-| **Tính toán 17 chỉ số x 10 mã cổ phiếu** | 50.000 dòng dữ liệu | **3.3 ms** | < 500 ms | ✓ Xuất sắc |
+| **Tính toán 17 chỉ số x 10 mã cổ phiếu** | 50.000 dòng dữ liệu | **3.8 ms** | < 500 ms | ✓ Xuất sắc |
 | **Thẩm định tệp CSV/Excel (Validator)** | 50.000 dòng dữ liệu | **142 ms** | < 1.000 ms | ✓ Đạt chuẩn Web Worker |
 | **Lập hồ sơ & Phát hiện bất thường MAD** | 50.000 dòng dữ liệu | **88 ms** | < 500 ms | ✓ Đạt chuẩn Web Worker |
 | **Thực thi phân tích riêng (Custom Workflow)** | 3 bước tính toán | **18 ms** | < 200 ms | ✓ Phản hồi tức thì |
@@ -404,18 +404,18 @@ Bạn là bộ phận lập kế hoạch định lượng cho Pixel Trading Agen
 | `D3\d3_context_empty_dropzone_locked.png` | 108.2 KB | `b2d147e85ac344e1` | ✓ Hợp lệ |
 | `D3\d3_context_filled_dropzone_unlocked.png` | 109.0 KB | `1da3e9e0763a0100` | ✓ Hợp lệ |
 | `D3\d3_report_context_panel.png` | 107.6 KB | `68629a0f707d922a` | ✓ Hợp lệ |
-| `FINAL\01_trang_chu.png` | 91.8 KB | `212717cda10cd73b` | ✓ Hợp lệ |
-| `FINAL\02_nap_du_lieu.png` | 116.1 KB | `3a7bb67e50120885` | ✓ Hợp lệ |
-| `FINAL\03_lam_sach_cong_duyet_1.png` | 50.6 KB | `cf26ddc38639a99c` | ✓ Hợp lệ |
-| `FINAL\04_lam_sach_da_duyet.png` | 51.1 KB | `dcf2cf9963fe0dc0` | ✓ Hợp lệ |
-| `FINAL\05_phan_tich_dinh_luong.png` | 94.7 KB | `70bc3ecce3a531bc` | ✓ Hợp lệ |
-| `FINAL\06_bao_cao_kpi_bieu_do.png` | 87.1 KB | `d8e35101c262f6a4` | ✓ Hợp lệ |
-| `FINAL\07_tro_ly_chat_chi_doc.png` | 86.8 KB | `a36cc08a94591b8e` | ✓ Hợp lệ |
-| `FINAL\08_quy_trinh_rieng_custom_plan.png` | 94.5 KB | `5a218b97b027f581` | ✓ Hợp lệ |
-| `FINAL\09_tien_trinh_agent_ilc.png` | 137.3 KB | `d466909865ea1a16` | ✓ Hợp lệ |
-| `FINAL\10_lich_su_phien.png` | 56.8 KB | `1142ed0bfc4d82ec` | ✓ Hợp lệ |
-| `FINAL\11_cau_hinh_he_thong.png` | 121.8 KB | `87ddaee93d362d02` | ✓ Hợp lệ |
-| `FINAL\12_thu_vien_giao_dien.png` | 85.9 KB | `374613b06675fbe4` | ✓ Hợp lệ |
+| `FINAL\01_trang_chu.png` | 91.3 KB | `66cf643872ee9833` | ✓ Hợp lệ |
+| `FINAL\02_nap_du_lieu.png` | 106.6 KB | `16a1b9cdec6ab987` | ✓ Hợp lệ |
+| `FINAL\03_lam_sach_cong_duyet_1.png` | 44.1 KB | `ce0f96decb1e23fd` | ✓ Hợp lệ |
+| `FINAL\04_lam_sach_da_duyet.png` | 44.4 KB | `dc80b868c0c8cd93` | ✓ Hợp lệ |
+| `FINAL\05_phan_tich_dinh_luong.png` | 94.5 KB | `88e9b8c4f7c33ba8` | ✓ Hợp lệ |
+| `FINAL\06_bao_cao_kpi_bieu_do.png` | 86.4 KB | `c213dfa885d352bb` | ✓ Hợp lệ |
+| `FINAL\07_tro_ly_chat_chi_doc.png` | 86.7 KB | `3e780bc9784b1946` | ✓ Hợp lệ |
+| `FINAL\08_quy_trinh_rieng_custom_plan.png` | 94.4 KB | `fdc36f8b43824eb1` | ✓ Hợp lệ |
+| `FINAL\09_tien_trinh_agent_ilc.png` | 137.2 KB | `3c918cc9f0dc087a` | ✓ Hợp lệ |
+| `FINAL\10_lich_su_phien.png` | 57.0 KB | `5db1b148930350df` | ✓ Hợp lệ |
+| `FINAL\11_cau_hinh_he_thong.png` | 121.4 KB | `b630593a48d04252` | ✓ Hợp lệ |
+| `FINAL\12_thu_vien_giao_dien.png` | 85.0 KB | `82b003ffc1c34903` | ✓ Hợp lệ |
 | `FINAL\test_shot.png` | 4.7 KB | `031955752f3d332d` | ✓ Hợp lệ |
 | `hotfix_ai_ping\01_cau_hinh_loi_ping_bad_input.png` | 118.9 KB | `ec142e3e657624c0` | ✓ Hợp lệ |
 | `hotfix_ai_ping\02_cau_hinh_ket_noi_thanh_cong.png` | 114.0 KB | `5da059c13dc0a631` | ✓ Hợp lệ |

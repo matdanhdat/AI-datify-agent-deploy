@@ -10,10 +10,13 @@ import { calculateMetrics, extractSymbolSeries } from '../core/metrics/calculato
 import { generateCharts } from '../core/metrics/charts';
 import { analyzeBusinessTable } from '../core/metrics/businessAnalyzer';
 import { computeAnalysisHash } from '../core/metrics/canonicalAnalysisHash';
+import { computeSelected } from '../core/metrics/businessComputeSelected';
+import { BUSINESS_METRIC_CATALOG } from '../core/metrics/businessCatalog';
 
 export interface AnalysisWorkerInput {
   cleanArtifact: CleanArtifact;
   config: AnalysisConfig;
+  selectedMetricIds?: string[];
   /** Test-only hook to verify Watchdog terminates infinite loops cleanly. */
   __simulateHang?: boolean;
 }
@@ -26,7 +29,7 @@ export interface AnalysisWorkerProgress {
 }
 
 self.onmessage = async (e: MessageEvent<AnalysisWorkerInput>) => {
-  const { cleanArtifact, config, __simulateHang } = e.data;
+  const { cleanArtifact, config, selectedMetricIds, __simulateHang } = e.data;
 
   try {
     if (__simulateHang) {
@@ -74,6 +77,16 @@ self.onmessage = async (e: MessageEvent<AnalysisWorkerInput>) => {
       });
 
       const analysisHash = await computeAnalysisHash(bizOut.metrics);
+
+      // Compute selected catalog metrics off main thread (Prompt 1D-2 & 2A-1)
+      const metricIds = (selectedMetricIds && selectedMetricIds.length > 0)
+        ? selectedMetricIds
+        : (config as any)?.selectedMetricIds && (config as any).selectedMetricIds.length > 0
+        ? (config as any).selectedMetricIds
+        : BUSINESS_METRIC_CATALOG.map((m) => m.id);
+      const selectedOut = computeSelected(table, metricIds);
+      (bizOut.summary as any).selected_analysis = selectedOut;
+
       const result: AnalysisResult = {
         kind: 'business',
         config: {
@@ -96,6 +109,7 @@ self.onmessage = async (e: MessageEvent<AnalysisWorkerInput>) => {
         },
         warnings: bizOut.warnings,
         business_analysis: bizOut.summary,
+        selected_analysis: selectedOut,
       };
 
       self.postMessage({

@@ -6,8 +6,15 @@
  */
 
 import type { BusinessAnalysisSummary } from '../metrics/businessAnalyzer';
+import type { BusinessTable } from '../businessTable';
 import { formatNumber, formatPercent } from '../../utils/format';
 import { sha256Sync } from '../context/normalize';
+import {
+  computeSelected,
+  type ComputeSelectedOutput,
+} from '../metrics/businessComputeSelected';
+import type { BusinessProfile } from '../cleaner/businessCleaner';
+import type { BusinessResolvedRoles } from '../metrics/businessRoles';
 
 export type FactCategory =
   | 'total'
@@ -37,6 +44,11 @@ export interface FactsTable {
   dataset_kind: 'business';
   period: string;
   facts: FactItem[];
+  // Prompt 1D-1 Section 1.6: Code-driven confidence, data limits, and selected metrics
+  confidence?: ComputeSelectedOutput['confidence'];
+  data_limits?: string[];
+  metrics_result?: ComputeSelectedOutput['metrics'];
+  question_metric_ids?: string[];
 }
 
 /**
@@ -267,7 +279,8 @@ export function buildBusinessFactsTable(
       'chart_biz_product_revenue'
     );
   }
-  if (top3_products_share_pct !== null && top3_products_share_pct !== undefined && summary.by_product.length > 0) {
+  // Prompt 2B: Chỉ tính mức tập trung Top 3 khi công ty có nhiều hơn 3 sản phẩm (tránh báo 100% khi chỉ có 1-3 SP)
+  if (top3_products_share_pct !== null && top3_products_share_pct !== undefined && summary.by_product.length > 3) {
     pushFact(
       'concentration',
       'Mức tập trung Top 3 sản phẩm dẫn đầu',
@@ -293,7 +306,21 @@ export function buildBusinessFactsTable(
       'chart_biz_region_revenue'
     );
   }
-  if (lowest_revenue_region && lowest_revenue_region.key !== topRegion?.key) {
+  const validRegions = summary.by_region.filter((r) => r.key !== 'Không xác định');
+  const minRev = lowest_revenue_region ? lowest_revenue_region.revenue : (validRegions.length > 0 ? Math.min(...validRegions.map((r) => r.revenue)) : 0);
+  const minTied = validRegions.filter((r) => r.revenue === minRev);
+  if (minTied.length > 1) {
+    const tiedNames = minTied.map((r) => sanitizeDataLabel(r.key, 40)).sort().join(' và ');
+    pushFact(
+      'region',
+      `Khu vực doanh thu thấp nhất (hòa: [DATA:${tiedNames}])`,
+      minRev,
+      `${formatNumber(minRev, 0)} VND (hòa: ${tiedNames})`,
+      'VND / %',
+      [minRev, minTied[0].revenue_share_pct, minTied[0].profit],
+      'chart_biz_region_revenue'
+    );
+  } else if (lowest_revenue_region && lowest_revenue_region.key !== topRegion?.key) {
     const safeR = sanitizeDataLabel(lowest_revenue_region.key, 40);
     pushFact(
       'region',
@@ -354,5 +381,54 @@ export function buildBusinessFactsTable(
     dataset_kind: 'business',
     period: periodStr,
     facts,
+  };
+}
+
+/**
+ * Builds a FactsTable directly from computeSelected output (Prompt 1D-1 Section 1.6).
+ * Pure code - deterministic, zero AI calls.
+ */
+export function buildBusinessFactsFromSelected(
+  table: BusinessTable,
+  selectedMetricIds: string[],
+  options?: {
+    profile?: BusinessProfile | null;
+    customRoles?: BusinessResolvedRoles;
+    periodStr?: string;
+  }
+): FactsTable & { selectedOutput: ComputeSelectedOutput } {
+  const selectedOutput = computeSelected(table, selectedMetricIds, options);
+
+  const facts: FactItem[] = selectedOutput.facts.map((ev) => ({
+    id: ev.id,
+    category: 'total' as FactCategory,
+    label_vi: ev.label_vi,
+    value: ev.value,
+    display: ev.display,
+    unit: ev.unit,
+    raw_numbers: ev.raw_numbers,
+  }));
+
+  const compactForHash = facts.map((f) => ({
+    id: f.id,
+    label_vi: f.label_vi,
+    display: f.display,
+    unit: f.unit,
+  }));
+  const serialized = JSON.stringify(compactForHash);
+  const byteSize = new TextEncoder().encode(serialized).length;
+  const hash = sha256Sync(serialized);
+
+  return {
+    hash,
+    byte_size: byteSize,
+    generated_at: new Date().toISOString(),
+    dataset_kind: 'business',
+    period: options?.periodStr || `${table.n} dòng`,
+    facts,
+    confidence: selectedOutput.confidence,
+    data_limits: selectedOutput.dataLimits,
+    metrics_result: selectedOutput.metrics,
+    selectedOutput,
   };
 }

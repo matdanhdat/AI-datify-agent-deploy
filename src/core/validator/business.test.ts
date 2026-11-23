@@ -233,7 +233,7 @@ describe('Business Data Profile (Prompt M1)', () => {
   });
 
   describe('Prompt 1B-1: Revenue requirement & missing role warnings', () => {
-    it('rejects business file without Revenue column with SCHEMA_NO_REVENUE_COLUMN and exact message', async () => {
+    it('warns when business file lacks Revenue column with SCHEMA_NO_REVENUE_COLUMN and exact message', async () => {
       const csv = [
         'Khu vực,Kênh bán,Chi phí',
         'Miền Bắc,Website,10000000',
@@ -244,12 +244,12 @@ describe('Business Data Profile (Prompt M1)', () => {
       ].join('\r\n');
 
       const outcome = await validateBytes('no_revenue.csv', new TextEncoder().encode(csv));
-      expect(outcome.ok).toBe(false);
-      if (outcome.ok) return;
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
 
-      const issue = outcome.issues.find((i) => i.code === 'SCHEMA_NO_REVENUE_COLUMN');
-      expect(issue).toBeDefined();
-      expect(issue?.message_vi).toBe(
+      const warning = outcome.warnings.find((w) => w.code === 'SCHEMA_NO_REVENUE_COLUMN');
+      expect(warning).toBeDefined();
+      expect(warning?.message_vi).toBe(
         'Không tìm thấy cột Doanh thu trong file. Agent nhận các tên cột như: Doanh thu, Doanh số, Revenue, Sales, Thành tiền. Hãy đổi tên cột doanh thu rồi tải lại.'
       );
     });

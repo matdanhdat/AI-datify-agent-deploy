@@ -491,6 +491,6 @@ export function requestReclean(sessionId: string): void {
     sessionId,
     'reclean',
     'user',
-    'Yêu cầu làm sạch lại dữ liệu (giữ lịch sử phiên bản sạch, xóa kết quả phân tích phía sau).'
+    'Cổng 1 được mở lại'
   );
 }

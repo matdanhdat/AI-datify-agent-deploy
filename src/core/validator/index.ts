@@ -86,7 +86,8 @@ export async function validateBytes(
   filename: string,
   bytes: Uint8Array,
   limits: ValidatorLimits = DEFAULT_LIMITS,
-  hooks: ValidationHooks = {}
+  hooks: ValidationHooks = {},
+  options?: { sheetName?: string }
 ): Promise<ValidationOutcome> {
   const { onProgress, isCancelled } = hooks;
 
@@ -127,6 +128,8 @@ export async function validateBytes(
   let skippedBlankRows = 0;
   const s2Warnings: ValidationIssue[] = [];
 
+  let allDetectedSheets: Array<{ name: string; rowCount: number; isHidden?: boolean }> = [];
+
   if (format === 'csv') {
     const csvResult = readCsv(bytes);
     if (!csvResult.ok && csvResult.issue) {
@@ -143,7 +146,7 @@ export async function validateBytes(
     skippedBlankRows = csvResult.skippedBlankRows || 0;
   } else {
     // xlsx
-    const xlsxResult = await readXlsx(bytes);
+    const xlsxResult = await readXlsx(bytes, options?.sheetName);
     if (!xlsxResult.ok && xlsxResult.issue) {
       return {
         ok: false,
@@ -157,6 +160,9 @@ export async function validateBytes(
     rawRecords = xlsxResult.records || [];
     sourceSheet = xlsxResult.sheetName || null;
     skippedBlankRows = xlsxResult.skippedBlankRows || 0;
+    if (xlsxResult.allSheets) {
+      allDetectedSheets = xlsxResult.allSheets;
+    }
     if (xlsxResult.warnings) {
       s2Warnings.push(...xlsxResult.warnings);
     }
@@ -230,11 +236,18 @@ export async function validateBytes(
       bytes
     );
 
-    if (businessRes.ok) {
+    if (businessRes.ok && businessRes.businessTable) {
+      if (allDetectedSheets.length > 0) {
+        businessRes.businessTable.available_sheets = allDetectedSheets;
+        businessRes.businessTable.selected_sheet = sourceSheet || undefined;
+      }
+      businessRes.businessTable.raw_bytes = bytes;
+      businessRes.businessTable.filename = filename;
+
       return {
         ok: true,
         summary: {
-          rows: businessRes.businessTable!.n,
+          rows: businessRes.businessTable.n,
           symbols: [],
           date_from: businessRes.meta!.date_from,
           date_to: businessRes.meta!.date_to,

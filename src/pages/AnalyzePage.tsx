@@ -34,6 +34,7 @@ import {
 import type { FactsTable } from '../core/narrative/factsBuilder';
 import type { BusinessInsightsReport } from '../core/narrative/businessInsights';
 import { BusinessInsightsPanel } from '../components/report/BusinessInsightsPanel';
+import { BUSINESS_METRIC_CATALOG } from '../core/metrics/businessCatalog';
 
 export const AnalyzePage: React.FC = () => {
   const navigate = useNavigate();
@@ -66,6 +67,8 @@ export const AnalyzePage: React.FC = () => {
   const [bizInsightsReport, setBizInsightsReport] = useState<BusinessInsightsReport | null>(null);
   const [highlightedChartId, setHighlightedChartId] = useState<string | null>(null);
   const analysisAbortRef = useRef<AbortController | null>(null);
+
+  const hasQuestions = Boolean(session?.business_questions && session.business_questions.length > 0);
   const insightsAbortRef = useRef<AbortController | null>(null);
   const inFlightLockRef = useRef<boolean>(false);
 
@@ -368,6 +371,20 @@ export const AnalyzePage: React.FC = () => {
     }
   };
 
+  // Prompt 1D-1 Muc 0.7: Auto-run analysis when navigating from Gate 1 approval with autoRun=1
+  useEffect(() => {
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    if (
+      params?.get('autoRun') === '1' &&
+      meta &&
+      !analysisResult &&
+      !inFlightLockRef.current &&
+      !isAnalyzing
+    ) {
+      handleExecuteAnalysis();
+    }
+  }, [meta, analysisResult, isAnalyzing]);
+
   const handleCopyDiagnostic = async () => {
     const diagPayload = {
       step: 'analyze',
@@ -434,6 +451,7 @@ export const AnalyzePage: React.FC = () => {
       );
     }
     const bizSummary = analysisResult?.business_analysis as BusinessAnalysisSummary | undefined;
+    const selectedAnalysis = (analysisResult as any)?.selected_analysis || (bizSummary as any)?.selected_analysis;
 
     return (
       <div style={{ maxWidth: '1160px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', paddingBottom: 'var(--space-8)' }}>
@@ -489,6 +507,9 @@ export const AnalyzePage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Prompt 5B: User Analysis Questions Display */}
+        {session && <BusinessContextPanel session={session} />}
 
         {/* Dataset Summary + Trigger Bar */}
         {!meta ? (
@@ -554,8 +575,8 @@ export const AnalyzePage: React.FC = () => {
                     {isAnalyzing
                       ? 'Đang phân tích...'
                       : bizSummary
-                      ? 'Chạy phân tích lại'
-                      : 'Chạy phân tích dữ liệu kinh doanh'}
+                        ? 'Chạy phân tích lại'
+                        : 'Chạy phân tích dữ liệu kinh doanh'}
                   </PixelButton>
                   {bizSummary && (
                     <PixelButton variant="primary" onClick={() => navigate('/bao-cao')}>
@@ -595,14 +616,21 @@ export const AnalyzePage: React.FC = () => {
               </div>
             )}
 
-            {/* 6 Core Business KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 'var(--space-3)' }}>
-              {[
-                {
-                  label: 'TỔNG DOANH THU',
-                  value: `${formatNumber(bizSummary.totals.revenue, 0)} VND`,
-                  reason: undefined,
-                  tone: 'var(--blue)',
+            {/* When hasQuestions is true: hide old KPI summary, dimension tables, and charts (Prompt 5B Section 1.E.2) */}
+            {!hasQuestions && (
+              <>
+                {/* 6 Core Business KPI Cards */}
+                <div data-testid="business-kpi-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 'var(--space-3)' }}>
+                  {[
+                    {
+                      label: 'TỔNG DOANH THU',
+                  value: bizSummary.totals.revenue !== null && !isNaN(bizSummary.totals.revenue)
+                    ? `${formatNumber(bizSummary.totals.revenue, 0)} VND`
+                    : 'KHÔNG ĐỦ DỮ LIỆU',
+                  reason: bizSummary.totals.revenue === null
+                    ? bizSummary.unavailable?.find((u) => u.id === 'revenue_total')?.reason_vi || 'Không có cột Doanh thu'
+                    : undefined,
+                  tone: bizSummary.totals.revenue !== null && !isNaN(bizSummary.totals.revenue) ? 'var(--blue)' : 'var(--ink-soft)',
                 },
                 {
                   label: 'LỢI NHUẬN GỘP',
@@ -737,34 +765,262 @@ export const AnalyzePage: React.FC = () => {
 
             {/* Interactive Charts */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))', gap: 'var(--space-4)' }}>
-              {analysisResult.charts.map((chart) => (
-                <div
-                  key={chart.id}
-                  id={chart.id}
-                  style={{
-                    outline: highlightedChartId === chart.id ? '3px solid var(--accent)' : 'none',
-                    outlineOffset: '2px',
-                  }}
-                >
-                  <PixelChart spec={chart} height={290} />
-                </div>
-              ))}
+              {analysisResult.charts.map((chart) => {
+                // Prompt 2A-1 0c.4: Adjust chart subtitle if chart only draws revenue
+                let adjustedChart = chart;
+                const hasProfitSeries = Array.isArray(chart.data?.series)
+                  ? chart.data.series.some((s: any) => (s.name || '').toLowerCase().includes('lợi nhuận') || (s.name || '').toLowerCase().includes('biên'))
+                  : false;
+                if (!hasProfitSeries && chart.subtitle_vi) {
+                  const newSubtitle = chart.subtitle_vi
+                    .replace(' và biên lợi nhuận gộp', '')
+                    .replace(' và lợi nhuận gộp', '');
+                  if (newSubtitle !== chart.subtitle_vi) {
+                    adjustedChart = { ...chart, subtitle_vi: newSubtitle };
+                  }
+                }
+
+                return (
+                  <div
+                    key={adjustedChart.id}
+                    id={adjustedChart.id}
+                    style={{
+                      outline: highlightedChartId === adjustedChart.id ? '3px solid var(--accent)' : 'none',
+                      outlineOffset: '2px',
+                    }}
+                  >
+                    <PixelChart spec={adjustedChart} height={290} />
+                  </div>
+                );
+              })}
             </div>
+              </>
+            )}
+
+            {/* Prompt 1D-2 Section 1.B & 2A-1: Khối Chỉ số theo danh mục */}
+            {selectedAnalysis && (
+              <div data-testid="selected-metrics-block">
+                <PixelPanel
+                  title={
+                    session?.selected_metric_ids && session.selected_metric_ids.length < 13
+                      ? `CHỈ SỐ THEO DANH MỤC (${session.selected_metric_ids.length} CHỈ SỐ)`
+                      : 'CHỈ SỐ THEO DANH MỤC (13 CHỈ SỐ)'
+                  }
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', padding: 'var(--space-2)' }}>
+                    {/* Top Bar: Description & Confidence Badge */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
+                          Danh mục các chỉ số nghiệp vụ đã chọn, tự động thẩm định khả thi và tính toán đơn kỳ O(n).
+                        </span>
+                        <PixelButton variant="ghost" size="sm" onClick={() => navigate('/trao-doi')}>
+                          ← Đổi lựa chọn chỉ số
+                        </PixelButton>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink-soft)' }}>ĐỘ TIN CẬY:</span>
+                        <PixelBadge
+                          variant={
+                            selectedAnalysis.confidence?.level === 'HIGH'
+                              ? 'success'
+                              : selectedAnalysis.confidence?.level === 'MEDIUM'
+                                ? 'warn'
+                                : 'danger'
+                          }
+                        >
+                          {selectedAnalysis.confidence?.level_vi || selectedAnalysis.confidence?.level || 'CAO'}
+                        </PixelBadge>
+                      </div>
+                    </div>
+
+                    {/* Confidence Downgrade Reasons (if any) */}
+                    {selectedAnalysis.confidence?.reasons && selectedAnalysis.confidence.reasons.length > 0 && (
+                      <div style={{ backgroundColor: '#fffbeb', border: '1px solid #f59e0b', padding: '8px 12px', fontSize: '12px', color: '#92400e' }}>
+                        <strong>Lý do hạ bậc tin cậy:</strong> {selectedAnalysis.confidence.reasons.join('; ')}
+                      </div>
+                    )}
+
+                    {/* Data Limits Notice (if any) */}
+                    {selectedAnalysis.dataLimits && selectedAnalysis.dataLimits.length > 0 && (
+                      <div style={{ backgroundColor: 'var(--surface-subtle)', border: '1px solid var(--border)', padding: '8px 12px', fontSize: '12px', color: 'var(--ink-soft)' }}>
+                        <strong style={{ color: 'var(--ink)' }}>Giới hạn dữ liệu:</strong>
+                        <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
+                          {selectedAnalysis.dataLimits.map((limit: string, lIdx: number) => (
+                            <li key={lIdx}>{limit}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 13 Metric Cards Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                      {BUSINESS_METRIC_CATALOG.map((def) => {
+                        const metric = selectedAnalysis.metrics?.[def.id];
+                        if (!metric) return null;
+
+                        const isFeasible = metric.status === 'tính được';
+
+                        if (!isFeasible) {
+                          return (
+                            <div
+                              key={def.id}
+                              className="px-shadow-sm"
+                              style={{
+                                backgroundColor: '#f8fafc',
+                                border: '1px dashed var(--ink-soft)',
+                                opacity: 0.75,
+                                padding: '14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '8px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--ink-soft)' }}>{metric.name || def.name}</span>
+                                <PixelBadge variant="neutral">BỊ KHÓA</PixelBadge>
+                              </div>
+                              <div style={{ fontSize: '12px', color: 'var(--ink-soft)', fontStyle: 'italic', lineHeight: 1.4 }}>
+                                Chỉ số bị khóa: {metric.reason}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={def.id}
+                            className="px-shadow-sm"
+                            style={{
+                              backgroundColor: 'var(--white)',
+                              border: '2px solid var(--ink)',
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '10px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--ink)' }}>{metric.name || def.name}</span>
+                              <PixelBadge variant="success">TÍNH ĐƯỢC</PixelBadge>
+                            </div>
+                            <div style={{ fontSize: '13px', color: 'var(--ink)', fontWeight: 600, lineHeight: 1.4 }}>
+                              {metric.answerText}
+                            </div>
+
+                            {/* Fact events [F#] with readable nguon */}
+                            {metric.events && metric.events.length > 0 && (
+                              <div style={{ fontSize: '11px', color: 'var(--ink-soft)', display: 'flex', flexDirection: 'column', gap: '3px', backgroundColor: 'var(--surface-subtle)', padding: '6px 8px', border: '1px solid var(--border)' }}>
+                                {metric.events.slice(0, 3).map((ev: any) => (
+                                  <div key={ev.id} style={{ display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                                    <span style={{ fontWeight: 700, color: 'var(--blue)' }}>[{ev.id}]</span>
+                                    <span>{ev.label_vi}: <strong>{ev.display}</strong> ({ev.nguon})</span>
+                                  </div>
+                                ))}
+                                {metric.events.length > 3 && (
+                                  <div style={{ fontSize: '10px', color: 'var(--ink-soft)', fontStyle: 'italic' }}>
+                                    +{metric.events.length - 3} sự kiện dữ liệu khác
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Pivot Table if present */}
+                            {metric.pivot && (
+                              metric.pivot.dimension ? (
+                                <div style={{ overflowX: 'auto', maxHeight: '160px', border: '1px solid var(--border)', marginTop: '4px' }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                    <thead>
+                                      <tr style={{ backgroundColor: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)' }}>
+                                        {metric.pivot.headers.map((h: string, idx: number) => (
+                                          <th key={idx} style={{ padding: '4px 6px', textAlign: idx === 0 ? 'left' : 'right' }}>{h}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {metric.pivot.rows.map((row: any, rIdx: number) => (
+                                        <tr key={rIdx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                          <td style={{ padding: '4px 6px', fontWeight: 600 }}>{row.label}</td>
+                                          {metric.pivot.headers.slice(1).map((h: string, hIdx: number) => {
+                                            let val: any = '—';
+                                            if (h.includes('Doanh thu')) val = row.revenue !== undefined ? `${formatNumber(row.revenue, 0)} VND` : '—';
+                                            else if (h.includes('Tỷ trọng')) val = row.revenue_share_pct !== undefined ? formatPercent(row.revenue_share_pct / 100) : '—';
+                                            else if (h.includes('Số đơn')) val = row.orders !== undefined ? formatNumber(row.orders, 0) : '—';
+                                            else if (h.includes('Biên')) val = row.margin_pct !== undefined ? formatPercent(row.margin_pct / 100) : '—';
+                                            else if (h.includes('Lợi nhuận')) val = row.profit !== undefined ? `${formatNumber(row.profit, 0)} VND` : '—';
+                                            return (
+                                              <td key={hIdx} style={{ padding: '4px 6px', textAlign: 'right' }}>
+                                                {val}
+                                              </td>
+                                            );
+                                          })}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : metric.pivot.channels && metric.pivot.products ? (
+                                <div style={{ overflowX: 'auto', maxHeight: '180px', border: '1px solid var(--border)', marginTop: '4px' }}>
+                                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                    <thead>
+                                      <tr style={{ backgroundColor: 'var(--surface-subtle)', borderBottom: '1px solid var(--border)' }}>
+                                        <th style={{ padding: '4px 6px', textAlign: 'left' }}>Kênh \ SP</th>
+                                        {metric.pivot.products.map((p: string, pIdx: number) => (
+                                          <th key={pIdx} style={{ padding: '4px 6px', textAlign: 'right' }}>{p}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {metric.pivot.channels.map((ch: string) => (
+                                        <tr key={ch} style={{ borderBottom: '1px solid var(--border)' }}>
+                                          <td style={{ padding: '4px 6px', fontWeight: 600 }}>{ch}</td>
+                                          {metric.pivot.products.map((pr: string) => {
+                                            const cell = metric.pivot.cells?.find((c: any) => c.channel === ch && c.product === pr);
+                                            return (
+                                              <td key={pr} style={{ padding: '4px 6px', textAlign: 'right' }}>
+                                                {cell ? formatPercent(cell.margin_pct / 100) : '—'}
+                                              </td>
+                                            );
+                                          })}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : null
+                            )}
+
+                            {/* Chart if present */}
+                            {metric.chart && (
+                              <div id={metric.chart.id} style={{ marginTop: '4px' }}>
+                                <PixelChart spec={metric.chart} height={180} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </PixelPanel>
+              </div>
+            )}
 
             {/* Non-blocking AI Verified Insights & Recommendations (Prompt M3-B) */}
-            <BusinessInsightsPanel
-              loading={aiInsightsLoading}
-              factsTable={bizFactsTable}
-              report={bizInsightsReport}
-              onRegenerate={() =>
-                session && triggerBusinessInsightsAsync(session.id, { forceRefresh: true })
-              }
-              onSelectChartId={(cid) => {
-                setHighlightedChartId(cid);
-                const el = document.getElementById(cid);
-                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }}
-            />
+            <div data-testid="business-insights-panel">
+              <BusinessInsightsPanel
+                loading={aiInsightsLoading}
+                factsTable={bizFactsTable}
+                report={bizInsightsReport}
+                onRegenerate={() =>
+                  session && triggerBusinessInsightsAsync(session.id, { forceRefresh: true })
+                }
+                onSelectChartId={(cid) => {
+                  setHighlightedChartId(cid);
+                  const el = document.getElementById(cid);
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+              />
+            </div>
           </>
         )}
 
@@ -1139,8 +1395,8 @@ export const AnalyzePage: React.FC = () => {
             {isAnalyzing
               ? 'Đang tính toán...'
               : analysisResult
-              ? 'Chạy phân tích lại'
-              : 'Chạy phân tích định lượng'}
+                ? 'Chạy phân tích lại'
+                : 'Chạy phân tích định lượng'}
           </PixelButton>
 
           {analysisResult && (

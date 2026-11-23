@@ -9,6 +9,7 @@ import type { BusinessColumn, BusinessTable } from '../businessTable';
 import type { ChartSpec, Metric } from '../schemas';
 import { formatNumber, formatPercent } from '../../utils/format';
 import { resolveBusinessRoles, BUSINESS_ROLE_WARNINGS, type BusinessResolvedRoles } from './businessRoles';
+import { applyManualBusinessRoles } from '../validator/business';
 
 // Single reusable Vietnamese numeric collator (never recreated inside loops)
 const VI_COLLATOR = new Intl.Collator('vi', { numeric: true, sensitivity: 'base' });
@@ -257,9 +258,12 @@ export function analyzeBusinessTable(
   onProgress?: (percent: number, message: string) => void
 ): BusinessAnalysisOutput {
   const n = table.n;
-  const roles = resolveBusinessRoles(table);
+  let roles = resolveBusinessRoles(table);
+  roles = applyManualBusinessRoles(roles, table);
 
-  const hasRevenue = roles.revenue.status === 'tìm thấy' && roles.revenue.col !== null;
+  const hasRevenue =
+    (roles.revenue.status === 'tìm thấy' || roles.revenue.status === 'suy luận') &&
+    roles.revenue.col !== null;
   const hasOrders = roles.orders.status === 'tìm thấy' && roles.orders.col !== null;
 
   const hasCogsDirect = roles.cogs.status === 'tìm thấy' && roles.cogs.col !== null;
@@ -482,16 +486,50 @@ export function analyzeBusinessTable(
     onProgress(65, 'Đang tính toán tỷ trọng, xu hướng theo tháng và phát hiện bất thường...');
   }
 
+  let isFakeZeroRevenue = false;
+  if (hasRevenue && roles.revenue.col && roles.revenue.col.role === 'measure') {
+    const revMeasure = roles.revenue.col;
+    let sourceHasNonZero = false;
+    if (revMeasure.raw_values) {
+      for (let i = 0; i < n; i++) {
+        if (!isNaN(revMeasure.raw_values[i]) && revMeasure.raw_values[i] !== 0) {
+          sourceHasNonZero = true;
+          break;
+        }
+      }
+    }
+    if (!sourceHasNonZero && revMeasure.raw_strings) {
+      for (let i = 0; i < n; i++) {
+        const s = revMeasure.raw_strings[i];
+        if (s && s.trim() && s.trim() !== '0') {
+          sourceHasNonZero = true;
+          break;
+        }
+      }
+    }
+    if (!sourceHasNonZero && revArr) {
+      for (let i = 0; i < n; i++) {
+        if (!isNaN(revArr[i]) && revArr[i] !== 0) {
+          sourceHasNonZero = true;
+          break;
+        }
+      }
+    }
+    if (sourceHasNonZero && totalRevenueAccum === 0) {
+      isFakeZeroRevenue = true;
+    }
+  }
+
   const totalOrders = hasOrders ? totalOrdersAccum : null;
-  const totalRevenue = totalRevenueAccum;
+  const totalRevenue = isFakeZeroRevenue ? (null as any) : totalRevenueAccum;
   const totalCogs = hasCogs ? totalCogsAccum : null;
-  const totalProfit = hasProfit ? totalProfitAccum : null;
+  const totalProfit = isFakeZeroRevenue ? null : (hasProfit ? totalProfitAccum : null);
   const grossMarginPct =
-    hasProfit && totalProfit !== null && totalRevenue > 0
+    !isFakeZeroRevenue && hasProfit && totalProfit !== null && totalRevenue > 0
       ? (totalProfit / totalRevenue) * 100
       : null;
   const aov =
-    hasOrders && totalOrders !== null && totalOrders > 0
+    !isFakeZeroRevenue && hasOrders && totalOrders !== null && totalOrders > 0 && totalRevenue !== null
       ? totalRevenue / totalOrders
       : null;
 
@@ -589,6 +627,19 @@ export function analyzeBusinessTable(
 
   // Track unavailable items for UI and reporting
   const unavailable: UnavailableMetricOrDimension[] = [];
+
+  if (isFakeZeroRevenue) {
+    const revColLabel = roles.revenue.col?.label || 'Doanh thu';
+    const fakeZeroMsg = `Không tính được doanh thu từ cột "${revColLabel}"`;
+    unavailable.push({
+      id: 'revenue_total',
+      label_vi: 'Tổng doanh thu',
+      reason_vi: fakeZeroMsg,
+    });
+    if (!roles.warnings.includes(fakeZeroMsg)) {
+      roles.warnings.push(fakeZeroMsg);
+    }
+  }
 
   if (!hasOrders) {
     unavailable.push({

@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:tz": "node scripts/test_tz.mjs",
     "verify:metrics": "node scripts/verify_metrics.mjs",
+    "verify:catalog": "vite-node scripts/verify_catalog.mjs",
     "gen:samples": "node scripts/gen_samples.mjs",
     "bench:upload": "node scripts/bench_upload.mjs",
     "bench:clean:business": "vite-node scripts/bench_clean_business.mjs",

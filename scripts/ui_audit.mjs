@@ -26,6 +26,7 @@ const ROUTES = [
   { name: 'Trang chủ (Home)', path: '/' },
   { name: 'Nạp dữ liệu (Upload)', path: '/nap-du-lieu' },
   { name: 'Làm sạch & Cổng duyệt 1 (Clean)', path: '/lam-sach?forceState=cleaning_review&sample=1' },
+  { name: 'Trao đổi & Chọn chỉ số (Exchange)', path: '/trao-doi?forceState=clean_approved&sample=1' },
   { name: 'Phân tích định lượng (Analyze)', path: '/phan-tich?forceState=clean_approved&sample=1' },
   { name: 'Báo cáo & Cổng duyệt 2 (Report)', path: '/bao-cao?forceState=report_approved&sample=1' },
   { name: 'Tiến trình Agent ILC (Progress)', path: '/tien-trinh?forceState=report_approved&sample=1' },

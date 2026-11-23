@@ -41,6 +41,7 @@ export function buildEChartsOption(spec: ChartSpec): Record<string, any> {
   const palette = [excelBlue, excelOrange, excelGray, excelGold, good, bad];
 
   const baseOption: Record<string, any> = {
+    animation: false,
     backgroundColor: chartBg,
     textStyle: {
       fontFamily: 'Calibri, Arial, sans-serif',
@@ -65,7 +66,56 @@ export function buildEChartsOption(spec: ChartSpec): Record<string, any> {
 
   switch (kind) {
     case 'line': {
-      // Single symbol (price + ma20 + ma50) OR Multi-symbol normalized
+      // Business series array OR Multi-symbol normalized OR Single symbol line
+      if (Array.isArray(data.series)) {
+        const categories = (data.categories || data.dates || []).map((d: string) =>
+          d.includes('-') && d.length === 10 ? formatDate(d) : d
+        );
+        return {
+          ...baseOption,
+          legend:
+            data.series.length > 1
+              ? {
+                  bottom: 5,
+                  data: data.series.map((s: any) => s.name),
+                  textStyle: { color: chartText },
+                }
+              : undefined,
+          tooltip: {
+            ...baseOption.tooltip,
+            formatter: (params: any) => {
+              const p = Array.isArray(params) ? params[0] : params;
+              const val = typeof p?.value === 'number' ? p.value : Number(p?.data?.value ?? 0);
+              return `${p?.name || ''}<br/><b>${formatNumber(val, 0)} VND</b>`;
+            },
+          },
+          xAxis: {
+            type: 'category',
+            data: categories,
+            splitLine: { show: false },
+            axisLine: { lineStyle: { color: chartAxis } },
+            axisLabel: { color: chartText },
+          },
+          yAxis: {
+            type: 'value',
+            splitLine: { show: true, lineStyle: { color: chartGrid } },
+            axisLine: { show: false },
+            axisLabel: {
+              color: chartText,
+              formatter: (v: number) => formatCompactCurrencyAxis(v),
+            },
+          },
+          series: data.series.map((s: any, idx: number) => ({
+            name: s.name,
+            type: 'line',
+            showSymbol: true,
+            data: s.values,
+            lineStyle: { width: 2, color: palette[idx % palette.length] },
+            itemStyle: { color: palette[idx % palette.length] },
+          })),
+        };
+      }
+
       if (data.series && typeof data.series === 'object') {
         // Multi-symbol normalized
         const seriesNames = Object.keys(data.series);
@@ -226,22 +276,24 @@ export function buildEChartsOption(spec: ChartSpec): Record<string, any> {
 
     case 'column': {
       // Monthly returns (default percent) OR Business currency columns
-      const isCurrency = data.valueFormat === 'currency';
+      const hasSeriesArray = Array.isArray(data.series);
+      const firstSeries = hasSeriesArray ? data.series[0] : null;
+      const values: number[] = firstSeries ? firstSeries.values : (data.values || []);
+      const isPct = (firstSeries?.name || '').includes('%') || data.valueFormat === 'percent';
+      const isCurrency = !isPct && (data.valueFormat === 'currency' || (firstSeries?.name || '').includes('VND') || (values[0] || 0) > 100);
       const unitLabel = data.unit || 'VND';
       return {
         ...baseOption,
-        ...(isCurrency
-          ? {
-              tooltip: {
-                ...baseOption.tooltip,
-                formatter: (params: any) => {
-                  const p = Array.isArray(params) ? params[0] : params;
-                  const val = typeof p?.value === 'number' ? p.value : Number(p?.data?.value ?? 0);
-                  return `${p?.name || ''}<br/><b>${formatNumber(val, 0)} ${unitLabel}</b>`;
-                },
-              },
-            }
-          : {}),
+        tooltip: {
+          ...baseOption.tooltip,
+          formatter: (params: any) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            const val = typeof p?.value === 'number' ? p.value : Number(p?.data?.value ?? 0);
+            return isCurrency
+              ? `${p?.name || ''}<br/><b>${formatNumber(val, 0)} ${unitLabel}</b>`
+              : `${p?.name || ''}<br/><b>${isPct ? val + '%' : formatPercent(val)}</b>`;
+          },
+        },
         xAxis: {
           type: 'category',
           data: data.categories || [],
@@ -257,18 +309,27 @@ export function buildEChartsOption(spec: ChartSpec): Record<string, any> {
             color: chartText,
             formatter: isCurrency
               ? (v: number) => formatCompactCurrencyAxis(v)
-              : (v: number) => `${(v * 100).toFixed(0)}%`,
+              : (v: number) => (isPct ? `${v}%` : `${(v * 100).toFixed(0)}%`),
           },
         },
-        series: [
-          {
-            type: 'bar',
-            data: (data.values || []).map((val: number) => ({
-              value: val,
-              itemStyle: { color: isCurrency ? excelBlue : val >= 0 ? good : bad },
-            })),
-          },
-        ],
+        series: hasSeriesArray
+          ? data.series.map((s: any, idx: number) => ({
+              name: s.name,
+              type: 'bar',
+              data: (s.values || []).map((val: number) => ({
+                value: val,
+                itemStyle: { color: isCurrency ? (palette[idx % palette.length] || excelBlue) : val >= 0 ? good : bad },
+              })),
+            }))
+          : [
+              {
+                type: 'bar',
+                data: values.map((val: number) => ({
+                  value: val,
+                  itemStyle: { color: isCurrency ? excelBlue : val >= 0 ? good : bad },
+                })),
+              },
+            ],
       };
     }
 
@@ -389,23 +450,25 @@ export function buildEChartsOption(spec: ChartSpec): Record<string, any> {
     }
 
     case 'bar': {
-      // Top days / symbol returns (default percent) OR Business horizontal currency bars
-      const isCurrency = data.valueFormat === 'currency';
+      // Top days / symbol returns (default percent) OR Business horizontal currency/percent bars
+      const hasSeriesArray = Array.isArray(data.series);
+      const firstSeries = hasSeriesArray ? data.series[0] : null;
+      const values: number[] = firstSeries ? firstSeries.values : (data.values || []);
+      const isPct = (firstSeries?.name || '').includes('%') || data.valueFormat === 'percent';
+      const isCurrency = !isPct && (data.valueFormat === 'currency' || (firstSeries?.name || '').includes('VND') || (values[0] || 0) > 100);
       const unitLabel = data.unit || 'VND';
       return {
         ...baseOption,
-        ...(isCurrency
-          ? {
-              tooltip: {
-                ...baseOption.tooltip,
-                formatter: (params: any) => {
-                  const p = Array.isArray(params) ? params[0] : params;
-                  const val = typeof p?.value === 'number' ? p.value : Number(p?.data?.value ?? 0);
-                  return `${p?.name || ''}<br/><b>${formatNumber(val, 0)} ${unitLabel}</b>`;
-                },
-              },
-            }
-          : {}),
+        tooltip: {
+          ...baseOption.tooltip,
+          formatter: (params: any) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            const val = typeof p?.value === 'number' ? p.value : Number(p?.data?.value ?? 0);
+            return isCurrency
+              ? `${p?.name || ''}<br/><b>${formatNumber(val, 0)} ${unitLabel}</b>`
+              : `${p?.name || ''}<br/><b>${isPct ? val + '%' : formatPercent(val)}</b>`;
+          },
+        },
         xAxis: {
           type: 'value',
           splitLine: { show: true, lineStyle: { color: chartGrid } },
@@ -414,7 +477,7 @@ export function buildEChartsOption(spec: ChartSpec): Record<string, any> {
             color: chartText,
             formatter: isCurrency
               ? (v: number) => formatCompactCurrencyAxis(v)
-              : (v: number) => formatPercent(v),
+              : (v: number) => (isPct ? `${v}%` : formatPercent(v)),
           },
         },
         yAxis: {
@@ -424,15 +487,24 @@ export function buildEChartsOption(spec: ChartSpec): Record<string, any> {
           axisLine: { lineStyle: { color: chartAxis } },
           axisLabel: { color: chartText },
         },
-        series: [
-          {
-            type: 'bar',
-            data: (data.values || []).map((val: number) => ({
-              value: val,
-              itemStyle: { color: val >= 0 ? good : bad },
-            })),
-          },
-        ],
+        series: hasSeriesArray
+          ? data.series.map((s: any, idx: number) => ({
+              name: s.name,
+              type: 'bar',
+              data: (s.values || []).map((val: number) => ({
+                value: val,
+                itemStyle: { color: isCurrency ? (palette[idx % palette.length] || excelBlue) : val >= 0 ? good : bad },
+              })),
+            }))
+          : [
+              {
+                type: 'bar',
+                data: values.map((val: number) => ({
+                  value: val,
+                  itemStyle: { color: val >= 0 ? good : bad },
+                })),
+              },
+            ],
       };
     }
 

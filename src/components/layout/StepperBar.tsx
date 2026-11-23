@@ -19,7 +19,7 @@ export const StepperBar: React.FC<StepperBarProps> = ({
 
   return (
     <nav
-      aria-label="Tiến trình quy trình 5 bước"
+      aria-label={`Tiến trình quy trình ${session.steps.length} bước`}
       style={{
         backgroundColor: 'var(--panel)',
         borderBottom: '2px solid var(--ink)',

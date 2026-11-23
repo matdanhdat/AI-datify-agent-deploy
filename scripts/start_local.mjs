@@ -11,6 +11,28 @@ export function isDistStale(srcMtimeMs, distMtimeMs, distExists, srcExists = tru
   return srcMtimeMs > distMtimeMs;
 }
 
+export function determineBuildDecision({ srcExists, nodeModulesExists, distExists, isStale, skipAutoBuild = false }) {
+  if (skipAutoBuild) return { action: 'skip', reason: 'skip_flag' };
+  if (!nodeModulesExists && !distExists) return { action: 'error', reason: 'no_deps_no_dist' };
+  if (!nodeModulesExists && distExists) return { action: 'serve_dist_no_build', reason: 'missing_node_modules' };
+  if (!srcExists) return { action: 'serve_dist_no_build', reason: 'no_src' };
+  if (isStale) return { action: 'build', reason: 'src_newer' };
+  return { action: 'serve_dist_no_build', reason: 'up_to_date' };
+}
+
+export function handleBuildResult(buildExitCode, distExists) {
+  if (buildExitCode !== 0) {
+    if (distExists) {
+      console.warn('[start_local] Auto-build thất bại, tiếp tục phục vụ bản build trước đó.');
+      return 'serve_existing_dist';
+    } else {
+      console.error(`Build thất bại với mã lỗi ${buildExitCode} và không có bản dist nào để phục vụ.`);
+      return 'exit';
+    }
+  }
+  return 'ok';
+}
+
 export function getLatestMtime(targetPath) {
   if (!fs.existsSync(targetPath)) return 0;
   const stat = fs.statSync(targetPath);
@@ -126,6 +148,7 @@ async function main() {
 
   // Verify dist build exists and is up to date
   const srcExists = fs.existsSync(path.resolve('src'));
+  const nodeModulesExists = fs.existsSync(path.resolve('node_modules'));
   const distHtmlPath = path.resolve('dist', 'index.html');
   const distExists = fs.existsSync(distHtmlPath);
   const distMtimeMs = distExists ? fs.statSync(distHtmlPath).mtimeMs : 0;
@@ -143,7 +166,24 @@ async function main() {
     }
   }
 
-  if (process.env.SKIP_AUTO_BUILD !== '1' && isDistStale(srcMtimeMs, distMtimeMs, distExists, srcExists)) {
+  // Prompt 2B: Kiểm tra quyết định build
+  const stale = isDistStale(srcMtimeMs, distMtimeMs, distExists, srcExists);
+  const decision = determineBuildDecision({
+    srcExists,
+    nodeModulesExists,
+    distExists,
+    isStale: stale,
+    skipAutoBuild: process.env.SKIP_AUTO_BUILD === '1',
+  });
+
+  if (decision.action === 'error') {
+    console.error('Thư mục node_modules và bản build dist đều không tồn tại. Vui lòng chạy npm install.');
+    process.exit(1);
+  } else if (!nodeModulesExists && distExists) {
+    console.warn('[start_local] node_modules không tìm thấy, bỏ qua auto-build, phục vụ dist sẵn có.');
+  }
+
+  if (decision.action === 'build') {
     console.log('Mã nguồn mới hơn bản build. Đang build lại, khoảng 1 phút...');
     const buildExitCode = await new Promise((resolve) => {
       const buildProcess = spawn('npm', ['run', 'build'], { stdio: 'inherit', shell: true });
@@ -153,8 +193,9 @@ async function main() {
         resolve(1);
       });
     });
-    if (buildExitCode !== 0) {
-      console.error(`Build thất bại với mã lỗi ${buildExitCode}. Không thể phục vụ bản cũ.`);
+
+    const res = handleBuildResult(buildExitCode, distExists);
+    if (res === 'exit') {
       process.exit(buildExitCode);
     }
   }

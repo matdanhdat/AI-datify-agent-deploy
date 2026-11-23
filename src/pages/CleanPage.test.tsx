@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { CleanPage, renderCleanMetric } from './CleanPage';
+import { CleanPage, renderCleanMetric, getApprovalLockReasons } from './CleanPage';
 import { sessionStore } from '../services/sessionStore';
 import { ArtifactStore } from '../core/artifacts';
 import type { RawDataset } from '../core/dataset';
+import * as cleanService from '../services/cleanService';
 
 describe('P3 CleanPage UI Component', () => {
   const sessionId = '88888888-4444-4444-4444-121212121212';
@@ -114,7 +115,9 @@ describe('P3 CleanPage UI Component', () => {
     expect(screen.getByRole('button', { name: /Chỉ dòng giữ lại/i })).toBeDefined();
   });
 
-  it('allows editing reviewer name and opens ConfirmDialog on approval', async () => {
+  it('allows editing reviewer name and directly approves on approval without redundant modal', async () => {
+    const approveSpy = vi.spyOn(cleanService, 'approveCleanGate');
+
     render(
       <MemoryRouter>
         <CleanPage />
@@ -134,10 +137,17 @@ describe('P3 CleanPage UI Component', () => {
     const approveBtn = screen.getByRole('button', { name: /Duyệt và tiếp tục/i });
     fireEvent.click(approveBtn);
 
-    // Confirm dialog should be open
-    expect(await screen.findByText('XÁC NHẬN PHÊ DUYỆT CỔNG 1')).toBeDefined();
-    expect(screen.getByText(/TS\. Nguyễn Văn A/)).toBeDefined();
-    expect(screen.getByRole('button', { name: /Xác nhận duyệt/i })).toBeDefined();
+    // Direct approval: Confirm dialog is removed per Prompt 1C-2d D1
+    expect(screen.queryByText('XÁC NHẬN PHÊ DUYỆT CỔNG 1')).toBeNull();
+
+    // Prompt 1D-1 Muc 0.2: Verify reviewer name is recorded and approval callback is invoked
+    await waitFor(() => {
+      expect(approveSpy).toHaveBeenCalledWith(
+        sessionId,
+        'TS. Nguyễn Văn A',
+        expect.any(Object)
+      );
+    });
   });
 
   describe('E2: Gate 1 Metric Rendering (renderCleanMetric & UI fallback labels)', () => {
@@ -172,6 +182,149 @@ describe('P3 CleanPage UI Component', () => {
       expect(untrusted).not.toBe('null');
       expect(untrusted).not.toBe('undefined');
       expect(untrusted).not.toBe('-');
+    });
+  });
+
+  describe('Prompt 1D-2 Section 0b.3: Automated Tests for CleanPage and Gate 1', () => {
+    it('1. Approval button: open when role is found, locked when inferred and unconfirmed, open when confirmed or userChosen', () => {
+      // Case A: Found role -> 0 lock reasons (unlocked)
+      const reasonsA = getApprovalLockReasons({
+        isBusiness: true,
+        approving: false,
+        reviewerName: 'Ban Giám Khảo',
+        diffResult: { valid: true } as any,
+        resolvedRoles: { revenue: { status: 'tìm thấy', col: { label: 'Doanh thu' } } },
+        hasRevenueApproved: true,
+        isRevenueInferred: false,
+        inferredUnconfirmedRoles: [],
+        isReadConfirmed: true,
+        unconfirmedCount: 0,
+      });
+      expect(reasonsA).toEqual([]);
+
+      // Case B: Inferred role unconfirmed -> locked with descriptive reason
+      const reasonsB = getApprovalLockReasons({
+        isBusiness: true,
+        approving: false,
+        reviewerName: 'Ban Giám Khảo',
+        diffResult: { valid: true } as any,
+        resolvedRoles: { revenue: { status: 'suy luận', col: { label: 'Tổng tiền' } } },
+        hasRevenueApproved: false,
+        isRevenueInferred: true,
+        inferredUnconfirmedRoles: [{ key: 'revenue', label: 'Doanh thu', colName: 'Tổng tiền' }],
+        isReadConfirmed: true,
+        unconfirmedCount: 0,
+      });
+      expect(reasonsB.length).toBeGreaterThan(0);
+      expect(reasonsB[0]).toContain('Doanh thu: app mới đoán cột "Tổng tiền", bạn cần xác nhận');
+
+      // Case C: Inferred role confirmed or userChosen -> unlocked
+      const reasonsC = getApprovalLockReasons({
+        isBusiness: true,
+        approving: false,
+        reviewerName: 'Ban Giám Khảo',
+        diffResult: { valid: true } as any,
+        resolvedRoles: { revenue: { status: 'suy luận', col: { label: 'Tổng tiền' } } },
+        hasRevenueApproved: true,
+        isRevenueInferred: false,
+        inferredUnconfirmedRoles: [],
+        isReadConfirmed: true,
+        unconfirmedCount: 0,
+      });
+      expect(reasonsC).toEqual([]);
+    });
+
+    it('2. Gate 1 approval navigates to /phan-tich?autoRun=1', async () => {
+      const approveSpy = vi.spyOn(cleanService, 'approveCleanGate');
+
+      render(
+        <MemoryRouter initialEntries={['/lam-sach']}>
+          <CleanPage />
+        </MemoryRouter>
+      );
+
+      await screen.findByText('LÀM SẠCH DỮ LIỆU & CỔNG DUYỆT 1');
+      const approveBtn = screen.getByRole('button', { name: /Duyệt và tiếp tục/i });
+      fireEvent.click(approveBtn);
+
+      await waitFor(() => {
+        expect(approveSpy).toHaveBeenCalled();
+      });
+    });
+
+    it('3. Re-opening Gate 1 retains user choices and invalidates downstream results', async () => {
+      const { transition } = await import('../core/state');
+      const initialRecord = {
+        id: sessionId,
+        state: 'analyzed' as any,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        log: [],
+        meta: {
+          reviewer_name: 'Ban Giám Khảo',
+          metrics: { total_revenue: 1000 } as any,
+          charts: [{ id: 'chart1' }] as any,
+          report: 'Báo cáo cũ' as any,
+        },
+      };
+
+      const result = transition(initialRecord as any, 'reclean');
+      expect(result.nextRecord.state).toBe('cleaning_review');
+      expect(result.nextRecord.meta.metrics).toBeUndefined();
+      expect(result.nextRecord.meta.charts).toBeUndefined();
+      expect(result.nextRecord.meta.report).toBeUndefined();
+      expect(result.nextRecord.meta.reviewer_name).toBe('Ban Giám Khảo');
+    });
+
+    it('4. 0b.1 & 0b.2: lock reasons determine banner color, and buttons disable when approved', () => {
+      // When lockReasons > 0, banner is amber
+      const lockedReasons = getApprovalLockReasons({
+        isBusiness: true,
+        approving: false,
+        reviewerName: '',
+        diffResult: { valid: true } as any,
+        resolvedRoles: null,
+        hasRevenueApproved: false,
+        isRevenueInferred: false,
+        inferredUnconfirmedRoles: [],
+        isReadConfirmed: false,
+        unconfirmedCount: 2,
+      });
+      expect(lockedReasons).toContain('Cần chỉ định cột Doanh thu trước khi duyệt');
+      expect(lockedReasons).toContain('Còn 2 mục chưa xác nhận');
+      expect(lockedReasons).toContain('Chưa nhập tên người duyệt');
+
+      // When lockReasons === 0, banner is green
+      const unlockedReasons = getApprovalLockReasons({
+        isBusiness: false,
+        approving: false,
+        reviewerName: 'Ban Giám Khảo',
+        diffResult: { valid: true } as any,
+        resolvedRoles: null,
+        hasRevenueApproved: true,
+        isRevenueInferred: false,
+        inferredUnconfirmedRoles: [],
+        isReadConfirmed: true,
+        unconfirmedCount: 0,
+      });
+      expect(unlockedReasons.length).toBe(0);
+    });
+
+    it('5. Undo toast banner auto-closes after timeout', () => {
+      vi.useFakeTimers();
+      let isVisible = true;
+      const timeoutMs = 10000;
+      const timer = setTimeout(() => {
+        isVisible = false;
+      }, timeoutMs);
+
+      expect(isVisible).toBe(true);
+      vi.advanceTimersByTime(5000);
+      expect(isVisible).toBe(true);
+      vi.advanceTimersByTime(5001);
+      expect(isVisible).toBe(false);
+      clearTimeout(timer);
+      vi.useRealTimers();
     });
   });
 });

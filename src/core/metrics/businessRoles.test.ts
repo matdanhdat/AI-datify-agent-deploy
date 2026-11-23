@@ -213,10 +213,10 @@ describe('businessRoles - Column Role Resolution Engine (H4 Full Suite)', () => 
       expect(roles.orders.status).toBe('thiếu');
     });
 
-    it('rejects isolated "Số lượng" from being recognized as Orders', () => {
+    it('recognizes "Số lượng" as Orders per Prompt 1C-2a synonym expansion', () => {
       const table = makeDummyTable([{ label: 'Số lượng' }, { label: 'Doanh thu' }]);
       const roles = resolveBusinessRoles(table);
-      expect(roles.orders.status).toBe('thiếu');
+      expect(roles.orders.status).toBe('tìm thấy');
     });
 
     it('rejects embedded substring "sl" in words like "slide" from matching Orders', () => {
