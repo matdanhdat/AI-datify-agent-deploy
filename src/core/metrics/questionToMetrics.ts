@@ -1,209 +1,179 @@
-/**
- * Question to Metrics Deterministic Mapper (Prompt 5B).
- * Maps user questions to business catalog metric IDs via keyword rules.
- * Pure logic, zero network, zero Gemini dependency.
- */
+// src/core/metrics/questionToMetrics.ts
+// Bản đồ từ khóa tiếng Việt -> id chỉ số catalog. Chạy không cần mạng, không cần AI.
 
-import { BUSINESS_METRIC_CATALOG } from './businessCatalog';
+export type QuestionFlag = 'profit' | 'channel' | 'product' | 'region' | 'time';
 
-export interface KeywordMetricRule {
-  readonly keywords: readonly string[];
-  readonly metricIds: readonly string[];
+export interface KeywordEntry {
+  vi: string;
+  ascii?: string;
+  /** Được phép khớp ở dạng không dấu khi cả câu không có dấu. */
+  asciiSafe: boolean;
+  ids?: string[];
+  /** Chỉ số tổng: bỏ khi câu nhắc tới kênh hoặc sản phẩm. */
+  globalIds?: string[];
+  flags?: QuestionFlag[];
 }
 
-export const QUESTION_KEYWORD_MAP: readonly KeywordMetricRule[] = [
-  {
-    keywords: ['doanh thu', 'doanh so', 'tong thu', 'ban duoc bao nhieu'],
-    metricIds: ['total_revenue'],
-  },
-  {
-    keywords: ['don hang', 'so don', 'luong don'],
-    metricIds: ['total_orders'],
-  },
-  {
-    keywords: ['gia tri don', 'trung binh moi don', 'aov', 'gio hang'],
-    metricIds: ['aov'],
-  },
-  {
-    keywords: ['loi nhuan'],
-    metricIds: ['gross_profit', 'gross_margin'],
-  },
-  {
-    keywords: ['lai', 'loi'],
-    metricIds: ['gross_profit', 'gross_margin'],
-  },
-  {
-    keywords: ['bien', 'ty suat', 'hieu qua'],
-    metricIds: ['gross_margin'],
-  },
-  {
-    keywords: ['kenh'],
-    metricIds: ['revenue_by_channel'],
-  },
-  {
-    keywords: ['khu vuc', 'vung', 'mien', 'dia ly', 'tinh', 'thanh pho'],
-    metricIds: ['revenue_by_region'],
-  },
-  {
-    keywords: ['thang', 'thoi gian', 'xu huong', 'theo ky', 'mua vu'],
-    metricIds: ['revenue_by_month', 'revenue_growth'],
-  },
-  {
-    keywords: ['tang truong', 'tang', 'giam', 'so voi thang truoc'],
-    metricIds: ['revenue_growth', 'revenue_by_month'],
-  },
-  {
-    keywords: ['san pham', 'mat hang', 'nhom hang'],
-    metricIds: ['revenue_by_product'],
-  },
-  {
-    keywords: ['ma tran', 'ket hop', 'ban kem', 'combo', 'kenh va san pham'],
-    metricIds: ['channel_product_matrix'],
-  },
-  {
-    keywords: ['tong quan', 'tinh hinh chung', 'hieu qua kinh doanh'],
-    metricIds: [
-      'total_revenue',
-      'total_orders',
-      'gross_margin',
-      'revenue_by_channel',
-      'revenue_by_month',
-    ],
-  },
-] as const;
-
-export interface UnsupportedTopic {
-  readonly keyword: string;
-  readonly raw: string;
-}
-
-export const QUESTION_UNSUPPORTED_TOPICS: readonly UnsupportedTopic[] = [
-  { keyword: 'nhan vien', raw: 'nhân viên' },
-  { keyword: 'khach hang', raw: 'khách hàng' },
-  { keyword: 'ton kho', raw: 'tồn kho' },
-  { keyword: 'chi phi quang cao', raw: 'chi phí quảng cáo' },
-  { keyword: 'marketing', raw: 'marketing' },
-  { keyword: 'khuyen mai', raw: 'khuyến mãi' },
-  { keyword: 'hoan hang', raw: 'hoàn hàng' },
-  { keyword: 'ty le chuyen doi', raw: 'tỷ lệ chuyển đổi' },
-  { keyword: 'doi thu', raw: 'đối thủ' },
-] as const;
-
-export const PROFIT_EFFICIENCY_KEYWORDS: readonly string[] = [
-  'lai',
-  'loi nhuan',
-  'loi',
-  'bien',
-  'hieu qua',
-  'day',
-  'tiem nang',
-  'uu tien',
-] as const;
-
-export const CHANNEL_ENTITY_KEYWORDS: readonly string[] = ['kenh'] as const;
-
-export const PRODUCT_ENTITY_KEYWORDS: readonly string[] = [
-  'san pham',
-  'mat hang',
-  'nhom hang',
-  'hang hoa',
-] as const;
-
-export const PROMPT_INJECTION_KEYWORDS: readonly string[] = [
-  'bo qua huong dan',
-  'xoa du lieu',
-  'in ra khoa',
-  'api key',
-  'system prompt',
-  'drop table',
-] as const;
-
-/**
- * Normalizes Vietnamese text: lowercase, remove diacritics (including đ->d), collapse whitespaces.
- */
 export function normalizeVi(text: string): string {
-  if (!text) return '';
   return text
     .toLowerCase()
-    .replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, 'a')
-    .replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, 'e')
-    .replace(/ì|í|ị|ỉ|ĩ/g, 'i')
-    .replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, 'o')
-    .replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, 'u')
-    .replace(/ỳ|ý|ỵ|ỷ|ỹ/g, 'y')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd')
     .replace(/\s+/g, ' ')
     .trim();
 }
+const toned = (text: string): string => text.toLowerCase().normalize('NFC').replace(/\s+/g, ' ').trim();
 
-/**
- * Matches keyword within text with word boundary matching.
- */
-function containsKeyword(normalizedText: string, keyword: string): boolean {
-  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, 'i');
-  return regex.test(normalizedText);
+const OVERVIEW_IDS = ['total_revenue', 'total_orders', 'gross_margin', 'revenue_by_channel', 'revenue_by_month'];
+const CATALOG_ORDER = [
+  'total_revenue', 'total_orders', 'aov', 'gross_profit', 'gross_margin', 'revenue_by_channel',
+  'revenue_by_region', 'revenue_by_month', 'revenue_growth', 'revenue_by_product',
+  'margin_by_channel', 'margin_by_product', 'channel_product_matrix',
+];
+
+export const QUESTION_KEYWORD_MAP: KeywordEntry[] = [
+  { vi: 'tổng quan', asciiSafe: true, ids: OVERVIEW_IDS },
+  { vi: 'tình hình chung', asciiSafe: true, ids: OVERVIEW_IDS },
+  { vi: 'hiệu quả kinh doanh', asciiSafe: true, ids: OVERVIEW_IDS },
+  { vi: 'doanh thu', asciiSafe: true, globalIds: ['total_revenue'] },
+  { vi: 'doanh số', asciiSafe: true, globalIds: ['total_revenue'] },
+  { vi: 'tổng thu', asciiSafe: true, globalIds: ['total_revenue'] },
+  { vi: 'bán được bao nhiêu', asciiSafe: true, globalIds: ['total_revenue'] },
+  { vi: 'số đơn', asciiSafe: true, globalIds: ['total_orders'] },
+  { vi: 'đơn hàng', asciiSafe: true, globalIds: ['total_orders'] },
+  { vi: 'lượng đơn', asciiSafe: true, globalIds: ['total_orders'] },
+  { vi: 'giá trị đơn', asciiSafe: true, ids: ['aov'] },
+  { vi: 'trung bình mỗi đơn', asciiSafe: true, ids: ['aov'] },
+  { vi: 'giỏ hàng', asciiSafe: true, ids: ['aov'] },
+  { vi: 'aov', asciiSafe: true, ids: ['aov'] },
+  { vi: 'biên lợi nhuận', asciiSafe: true, flags: ['profit'], globalIds: ['gross_margin'] },
+  { vi: 'lợi nhuận', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'giá vốn', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'lãi nhiều nhất', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'lời nhiều nhất', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'lãi nhất', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'lời nhất', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'sinh lời', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'sinh lãi', asciiSafe: true, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'lãi', asciiSafe: false, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'lời', asciiSafe: false, flags: ['profit'], globalIds: ['gross_profit', 'gross_margin'] },
+  { vi: 'biên', asciiSafe: false, flags: ['profit'], globalIds: ['gross_margin'] },
+  { vi: 'tỷ suất', asciiSafe: true, flags: ['profit'], globalIds: ['gross_margin'] },
+  { vi: 'tỉ suất', asciiSafe: true, flags: ['profit'], globalIds: ['gross_margin'] },
+  { vi: 'hiệu quả', asciiSafe: true, flags: ['profit'], globalIds: ['gross_margin'] },
+  { vi: 'đẩy mạnh', asciiSafe: true, flags: ['profit'] },
+  { vi: 'tiềm năng', asciiSafe: true, flags: ['profit'] },
+  { vi: 'ưu tiên', asciiSafe: true, flags: ['profit'] },
+  { vi: 'nên tập trung', asciiSafe: true, flags: ['profit'] },
+  { vi: 'kênh và sản phẩm', asciiSafe: true, ids: ['channel_product_matrix'], flags: ['channel', 'product'] },
+  { vi: 'ma trận', asciiSafe: true, ids: ['channel_product_matrix'], flags: ['channel', 'product'] },
+  { vi: 'bán kèm', asciiSafe: true, ids: ['channel_product_matrix'], flags: ['channel', 'product'] },
+  { vi: 'combo', asciiSafe: true, ids: ['channel_product_matrix'], flags: ['channel', 'product'] },
+  { vi: 'kết hợp', asciiSafe: true, ids: ['channel_product_matrix'], flags: ['channel', 'product'] },
+  { vi: 'kênh', asciiSafe: true, ids: ['revenue_by_channel'], flags: ['channel'] },
+  { vi: 'khu vực', asciiSafe: true, ids: ['revenue_by_region'], flags: ['region'] },
+  { vi: 'địa lý', asciiSafe: true, ids: ['revenue_by_region'], flags: ['region'] },
+  { vi: 'thành phố', asciiSafe: true, ids: ['revenue_by_region'], flags: ['region'] },
+  { vi: 'vùng', asciiSafe: false, ids: ['revenue_by_region'], flags: ['region'] },
+  { vi: 'miền', asciiSafe: false, ids: ['revenue_by_region'], flags: ['region'] },
+  { vi: 'tỉnh', asciiSafe: false, ids: ['revenue_by_region'], flags: ['region'] },
+  { vi: 'so với tháng trước', asciiSafe: true, ids: ['revenue_growth', 'revenue_by_month'], flags: ['time'] },
+  { vi: 'tăng trưởng', asciiSafe: true, ids: ['revenue_growth', 'revenue_by_month'], flags: ['time'] },
+  { vi: 'xu hướng', asciiSafe: true, ids: ['revenue_by_month', 'revenue_growth'], flags: ['time'] },
+  { vi: 'theo tháng', asciiSafe: true, ids: ['revenue_by_month'], flags: ['time'] },
+  { vi: 'hàng tháng', asciiSafe: true, ids: ['revenue_by_month'], flags: ['time'] },
+  { vi: 'mỗi tháng', asciiSafe: true, ids: ['revenue_by_month'], flags: ['time'] },
+  { vi: 'thời gian', asciiSafe: true, ids: ['revenue_by_month'], flags: ['time'] },
+  { vi: 'theo kỳ', asciiSafe: true, ids: ['revenue_by_month'], flags: ['time'] },
+  { vi: 'mùa vụ', asciiSafe: true, ids: ['revenue_by_month'], flags: ['time'] },
+  { vi: 'tháng', asciiSafe: false, ids: ['revenue_by_month'], flags: ['time'] },
+  { vi: 'tăng', asciiSafe: false, ids: ['revenue_growth', 'revenue_by_month'], flags: ['time'] },
+  { vi: 'giảm', asciiSafe: false, ids: ['revenue_growth', 'revenue_by_month'], flags: ['time'] },
+  { vi: 'sản phẩm', asciiSafe: true, ids: ['revenue_by_product'], flags: ['product'] },
+  { vi: 'mặt hàng', asciiSafe: true, ids: ['revenue_by_product'], flags: ['product'] },
+  { vi: 'nhóm hàng', asciiSafe: true, ids: ['revenue_by_product'], flags: ['product'] },
+];
+
+export const QUESTION_UNSUPPORTED_TOPICS: string[] = [
+  'nhân viên', 'khách hàng', 'tồn kho', 'quảng cáo', 'marketing', 'khuyến mãi',
+  'hoàn hàng', 'tỷ lệ chuyển đổi', 'tỉ lệ chuyển đổi', 'đối thủ', 'chi phí',
+];
+
+const INJECTION_PATTERNS: string[] = [
+  'bỏ qua', 'xóa', 'xoá', 'khóa api', 'api key', 'apikey', 'prompt', 'ignore previous',
+  'ignore all', 'system prompt', 'mật khẩu', 'tiết lộ',
+];
+
+export const MSG_INJECTION = 'Yêu cầu không thuộc phạm vi phân tích.';
+export const MSG_NOT_UNDERSTOOD =
+  'Chưa hiểu câu hỏi; hãy hỏi về doanh thu, lợi nhuận, kênh, sản phẩm, khu vực hoặc thời gian.';
+export const msgUnsupportedTopic = (topic: string): string =>
+  `Dữ liệu hiện tại chưa có thông tin về ${topic} nên chưa trả lời được.`;
+export const msgPartialNote = (topic: string): string =>
+  `Phần về ${topic} chưa trả lời được vì dữ liệu chưa có thông tin này.`;
+
+function esc(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function phraseRe(phrase: string, flags = 'u'): RegExp {
+  return new RegExp(`(?<![\\p{L}\\p{N}])${esc(phrase)}(?![\\p{L}\\p{N}])`, flags);
 }
 
-export interface SanitizeResult {
+export function sanitizeOne(raw: string): string {
+  return raw
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[<>{}[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
+}
+
+export interface QuestionInputInfo {
   questions: string[];
-  hasWarnings: boolean;
-  warningMessage?: string;
+  droppedLines: number;
+  truncated: boolean;
+}
+export function inspectQuestionInput(raw: string): QuestionInputInfo {
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  const truncated = lines.some((l) => l.length > 200);
+  const cleaned = lines.map(sanitizeOne).filter((l) => l.length > 0);
+  return { questions: cleaned.slice(0, 3), droppedLines: Math.max(0, cleaned.length - 3), truncated };
+}
+export function sanitizeQuestions(raw: string): string[] {
+  return inspectQuestionInput(raw).questions;
 }
 
-/**
- * Sanitizes raw user input:
- * - splits by line
- * - removes empty lines
- * - strips HTML tags, control chars, and brackets <>{}[]
- * - caps at 3 questions
- * - truncates each question to max 200 chars
- */
-export function sanitizeQuestions(raw: string): SanitizeResult {
-  if (!raw || typeof raw !== 'string') {
-    return { questions: [], hasWarnings: false };
-  }
-
-  const rawLines = raw
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  let hasWarnings = false;
-  if (rawLines.length > 3) {
-    hasWarnings = true;
-  }
-
-  const cleanedLines: string[] = [];
-  const linesToProcess = rawLines.slice(0, 3);
-
-  for (const line of linesToProcess) {
-    // Strip HTML tags
-    let cleaned = line.replace(/<[^>]*>/g, '');
-    // Strip control characters and brackets <>{}[]
-    cleaned = cleaned.replace(/[\x00-\x1F\x7F<>{}[\]]/g, '');
-    cleaned = cleaned.trim();
-
-    if (cleaned.length > 200) {
-      hasWarnings = true;
-      cleaned = cleaned.slice(0, 200).trim();
-    }
-
-    if (cleaned.length > 0) {
-      cleanedLines.push(cleaned);
+interface ScanResult { hits: KeywordEntry[] }
+function scan(text: string, useAscii: boolean): ScanResult {
+  let rest = text;
+  const hits: KeywordEntry[] = [];
+  const entries = QUESTION_KEYWORD_MAP
+    .filter((k) => !useAscii || k.asciiSafe)
+    .map((k) => ({ k, phrase: useAscii ? (k.ascii ?? normalizeVi(k.vi)) : k.vi }))
+    .sort((a, b) => b.phrase.length - a.phrase.length);
+  for (const { k, phrase } of entries) {
+    if (phraseRe(phrase).test(rest)) {
+      hits.push(k);
+      rest = rest.replace(phraseRe(phrase, 'gu'), ' ');
     }
   }
-
-  return {
-    questions: cleanedLines,
-    hasWarnings,
-    warningMessage: hasWarnings
-      ? 'Chỉ nhận tối đa 3 câu, mỗi câu tối đa 200 ký tự'
-      : undefined,
-  };
+  return { hits };
 }
 
-export interface QuestionMetricResult {
+function findPhrase(list: string[], tonedText: string, asciiText: string, useAscii: boolean): string | null {
+  for (const p of list) {
+    const phrase = useAscii ? normalizeVi(p) : p;
+    if (phraseRe(phrase).test(useAscii ? asciiText : tonedText)) return p;
+  }
+  return null;
+}
+
+export interface FeasibilityInfo { feasible: boolean; reason?: string }
+export interface QuestionResult {
   index: number;
   text: string;
   tickIds: string[];
@@ -212,169 +182,63 @@ export interface QuestionMetricResult {
   note?: string;
 }
 
-export interface MapQuestionsOutput {
-  perQuestion: QuestionMetricResult[];
-  tickUnion: string[];
-}
-
-/**
- * Pure mapping function from user questions to catalog metric IDs.
- * Evaluates feasibility and produces detailed per-question and union results.
- */
 export function mapQuestionsToMetrics(
   questions: string[],
-  feasibilityById: Record<string, { feasible: boolean; reason?: string }>,
-  _labelById?: Record<string, string>
-): MapQuestionsOutput {
-  const perQuestion: QuestionMetricResult[] = [];
-  const unionSet = new Set<string>();
+  feasibilityById: Record<string, FeasibilityInfo>,
+  _labelById: Record<string, string> = {},
+): { perQuestion: QuestionResult[]; tickUnion: string[] } {
+  const perQuestion: QuestionResult[] = [];
+  const union: string[] = [];
+  questions.forEach((q, index) => {
+    const t = toned(q);
+    const a = normalizeVi(q);
+    const useAscii = t === a; // cả câu không dấu
+    const res: QuestionResult = { index, text: q, tickIds: [], blockedIds: [] };
 
-  // Set of all legitimate catalog metric IDs
-  const validCatalogIds = new Set(BUSINESS_METRIC_CATALOG.map((m) => m.id));
-
-  questions.forEach((qText, idx) => {
-    const norm = normalizeVi(qText);
-
-    // 1. Check prompt injection
-    const hasInjection = PROMPT_INJECTION_KEYWORDS.some((kw) =>
-      containsKeyword(norm, kw)
-    );
-    if (hasInjection) {
-      perQuestion.push({
-        index: idx,
-        text: qText,
-        tickIds: [],
-        blockedIds: [],
-        unanswerable: 'Yêu cầu không thuộc phạm vi phân tích',
-      });
+    if (findPhrase(INJECTION_PATTERNS, t, a, false) || findPhrase(INJECTION_PATTERNS, t, a, true)) {
+      res.unanswerable = MSG_INJECTION;
+      perQuestion.push(res);
       return;
     }
-
-    // Check entity presence
-    const hasChannel = CHANNEL_ENTITY_KEYWORDS.some((kw) =>
-      containsKeyword(norm, kw)
-    );
-    const hasProduct = PRODUCT_ENTITY_KEYWORDS.some((kw) =>
-      containsKeyword(norm, kw)
-    );
-    const hasEntity = hasChannel || hasProduct;
-
-    // Check explicit "loi nhuan"
-    const hasLoiNhuanNoun = containsKeyword(norm, 'loi nhuan');
-
-    // 2. Identify matched metrics
-    const matchedMetricIds = new Set<string>();
-
-    for (const rule of QUESTION_KEYWORD_MAP) {
-      // If rule is standalone 'lai' or 'loi' (without 'loi nhuan') and an entity (channel/product) is present,
-      // it specifies entity margin (margin_by_channel / margin_by_product), so skip adding aggregate gross_profit/gross_margin
-      if (
-        hasEntity &&
-        !hasLoiNhuanNoun &&
-        rule.keywords.length === 2 &&
-        rule.keywords.includes('lai') &&
-        rule.keywords.includes('loi')
-      ) {
-        continue;
-      }
-
-      // If rule is 'bien', 'ty suat', 'hieu qua' and an entity is present, entity profit efficiency handles it
-      if (
-        hasEntity &&
-        rule.keywords.length === 3 &&
-        rule.keywords.includes('bien') &&
-        rule.keywords.includes('hieu qua')
-      ) {
-        continue;
-      }
-
-      const matched = rule.keywords.some((kw) => containsKeyword(norm, kw));
-      if (matched) {
-        for (const mId of rule.metricIds) {
-          if (validCatalogIds.has(mId)) {
-            matchedMetricIds.add(mId);
-          }
-        }
-      }
-    }
-
-    // Profit-efficiency entity rule:
-    const hasProfitEfficiency = PROFIT_EFFICIENCY_KEYWORDS.some((kw) =>
-      containsKeyword(norm, kw)
-    );
-    if (hasProfitEfficiency) {
-      if (hasChannel) {
-        matchedMetricIds.add('margin_by_channel');
-      }
-      if (hasProduct) {
-        matchedMetricIds.add('margin_by_product');
-      }
-      if (hasChannel && hasProduct) {
-        matchedMetricIds.add('channel_product_matrix');
-      }
-    }
-
-    // 3. Identify unsupported topics
-    const matchedUnsupported = QUESTION_UNSUPPORTED_TOPICS.find((topic) =>
-      containsKeyword(norm, topic.keyword)
-    );
-
-    // 4. Handle unsupported topics without metrics
-    if (matchedUnsupported && matchedMetricIds.size === 0) {
-      perQuestion.push({
-        index: idx,
-        text: qText,
-        tickIds: [],
-        blockedIds: [],
-        unanswerable: `Dữ liệu hiện tại chưa có thông tin về ${matchedUnsupported.raw} nên chưa trả lời được.`,
-      });
-      return;
-    }
-
-    // 5. Handle unrecognizable questions
-    if (matchedMetricIds.size === 0) {
-      perQuestion.push({
-        index: idx,
-        text: qText,
-        tickIds: [],
-        blockedIds: [],
-        unanswerable:
-          'Chưa hiểu câu hỏi; hãy hỏi về doanh thu, lợi nhuận, kênh, sản phẩm, khu vực hoặc thời gian.',
-      });
-      return;
-    }
-
-    // 6. Split matched metrics into tickIds (feasible) and blockedIds (unfeasible)
-    const tickIds: string[] = [];
-    const blockedIds: Array<{ id: string; reason: string }> = [];
-
-    for (const mId of matchedMetricIds) {
-      const feas = feasibilityById[mId];
-      if (feas && feas.feasible) {
-        tickIds.push(mId);
-        unionSet.add(mId);
-      } else {
-        const reason = feas?.reason || 'Chưa đủ điều kiện dữ liệu để tính.';
-        blockedIds.push({ id: mId, reason });
-      }
-    }
-
-    let note: string | undefined = undefined;
-    if (matchedUnsupported) {
-      note = `Dữ liệu hiện tại chưa có thông tin về ${matchedUnsupported.raw} nên chưa trả lời được phần này.`;
-    }
-
-    perQuestion.push({
-      index: idx,
-      text: qText,
-      tickIds,
-      blockedIds,
-      note,
+    const topic = findPhrase(QUESTION_UNSUPPORTED_TOPICS, t, a, useAscii);
+    const { hits } = scan(useAscii ? a : t, useAscii);
+    const flags = new Set<QuestionFlag>();
+    hits.forEach((h) => h.flags?.forEach((f) => flags.add(f)));
+    const dropGlobals = flags.has('channel') || flags.has('product');
+    const ids = new Set<string>();
+    hits.forEach((h) => {
+      h.ids?.forEach((i) => ids.add(i));
+      if (!dropGlobals) h.globalIds?.forEach((i) => ids.add(i));
     });
-  });
+    if (flags.has('profit')) {
+      if (flags.has('channel') && flags.has('product')) {
+        ['channel_product_matrix', 'margin_by_channel', 'margin_by_product'].forEach((i) => ids.add(i));
+      } else if (flags.has('channel')) ids.add('margin_by_channel');
+      else if (flags.has('product')) ids.add('margin_by_product');
+    }
+    const ordered = CATALOG_ORDER.filter((i) => ids.has(i));
+    ids.forEach((i) => { if (!ordered.includes(i)) ordered.push(i); });
 
-  return {
-    perQuestion,
-    tickUnion: Array.from(unionSet),
-  };
+    if (ordered.length === 0) {
+      res.unanswerable = topic ? msgUnsupportedTopic(topic) : MSG_NOT_UNDERSTOOD;
+      perQuestion.push(res);
+      return;
+    }
+    for (const id of ordered) {
+      const f = feasibilityById[id];
+      if (f?.feasible) {
+        res.tickIds.push(id);
+        if (!union.includes(id)) union.push(id);
+      } else {
+        res.blockedIds.push({ id, reason: f?.reason ?? 'Chỉ số không có trong danh mục.' });
+      }
+    }
+    if (topic) res.note = msgPartialNote(topic);
+    perQuestion.push(res);
+  });
+  return { perQuestion, tickUnion: union };
 }
+
+// Re-export backward compatibility aliases for existing app code
+export type QuestionMetricResult = QuestionResult;
+export type MapQuestionsOutput = { perQuestion: QuestionResult[]; tickUnion: string[] };

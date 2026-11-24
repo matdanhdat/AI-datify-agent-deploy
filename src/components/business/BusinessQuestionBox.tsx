@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PixelPanel } from '../pixel/PixelPanel';
 import { PixelButton } from '../pixel/PixelButton';
 import {
-  sanitizeQuestions,
+  inspectQuestionInput,
 } from '../../core/metrics/questionToMetrics';
 import type {
   BusinessQuestionAnalysisResult,
@@ -54,25 +54,25 @@ export const BusinessQuestionBox: React.FC<BusinessQuestionBoxProps> = ({
     const val = e.target.value;
     setInputText(val);
 
-    const check = sanitizeQuestions(val);
-    if (check.hasWarnings) {
-      setWarning(check.warningMessage || 'Chỉ nhận tối đa 3 câu, mỗi câu tối đa 200 ký tự');
+    const check = inspectQuestionInput(val);
+    if (check.droppedLines > 0 || check.truncated) {
+      setWarning('Chỉ nhận tối đa 3 câu, mỗi câu tối đa 200 ký tự');
     } else {
       setWarning(null);
     }
   };
 
   const handleSend = async () => {
-    const sanitized = sanitizeQuestions(inputText);
-    if (sanitized.questions.length === 0) {
+    const check = inspectQuestionInput(inputText);
+    if (check.questions.length === 0) {
       return;
     }
-    if (sanitized.hasWarnings) {
-      setWarning(sanitized.warningMessage || 'Chỉ nhận tối đa 3 câu, mỗi câu tối đa 200 ký tự');
+    if (check.droppedLines > 0 || check.truncated) {
+      setWarning('Chỉ nhận tối đa 3 câu, mỗi câu tối đa 200 ký tự');
     } else {
       setWarning(null);
     }
-    await onSendQuestions(sanitized.questions);
+    await onSendQuestions(check.questions);
   };
 
   const handleClear = () => {

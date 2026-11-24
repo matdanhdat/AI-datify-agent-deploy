@@ -24,3 +24,7 @@ __pycache__/
 .ruff_cache/
 .venv/
 data/
+
+# Added for push
+*.zip
+_bao-cao-*/

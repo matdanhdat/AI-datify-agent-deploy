@@ -55,8 +55,51 @@ describe('Prompt 5A: 4-Layer Meaningful Insights, Opp/Risk, and Action Verificat
         unit: 'VND',
         raw_numbers: [40000000, 15.0],
       },
+      {
+        id: 'F5',
+        category: 'channel',
+        label_vi: 'Kênh [DATA:Bán lẻ]',
+        value: 60000000,
+        display: 'Bán lẻ Doanh thu 60.000.000 VND (60.00%), biên LN 23.33%',
+        unit: 'VND',
+        raw_numbers: [60000000, 23.33],
+      },
     ],
     metrics_result: {
+      gross_margin: {
+        id: 'gross_margin',
+        name: 'Biên lợi nhuận gộp',
+        status: 'tính được',
+        feasible: true,
+        answerText: '',
+        events: [
+          {
+            id: 'E1',
+            label_vi: 'gross_margin',
+            display: '20.00%',
+            unit: '%',
+            value: 20.0,
+            raw_numbers: [20.0],
+            nguon: 'tinh_toan',
+          },
+        ],
+      },
+      revenue_by_channel: {
+        id: 'revenue_by_channel',
+        name: 'Doanh thu theo kênh',
+        status: 'tính được',
+        feasible: true,
+        answerText: '',
+        events: [],
+        pivot: {
+          dimension: 'Kênh',
+          headers: ['Kênh', 'Doanh thu', 'Lợi nhuận'],
+          rows: [
+            { key: 'Bán sỉ', label: 'Bán sỉ', revenue: 40000000, profit: 6000000 },
+            { key: 'Bán lẻ', label: 'Bán lẻ', revenue: 60000000, profit: 14000000 },
+          ],
+        },
+      },
       margin_by_channel: {
         id: 'margin_by_channel',
         name: 'Biên lợi nhuận theo kênh',
@@ -68,8 +111,8 @@ describe('Prompt 5A: 4-Layer Meaningful Insights, Opp/Risk, and Action Verificat
           dimension: 'Kênh',
           headers: ['Kênh', 'Doanh thu', 'Biên LN (%)'],
           rows: [
-            { key: 'Bán sỉ', label: 'Bán sỉ', revenue: 40000000, margin_pct: 15.0 },
-            { key: 'Bán lẻ', label: 'Bán lẻ', revenue: 60000000, margin_pct: 23.3 },
+            { key: 'Bán sỉ', label: 'Bán sỉ', revenue: 40000000, profit: 6000000, margin_pct: 15.0 },
+            { key: 'Bán lẻ', label: 'Bán lẻ', revenue: 60000000, profit: 14000000, margin_pct: 23.33 },
           ],
         },
       },

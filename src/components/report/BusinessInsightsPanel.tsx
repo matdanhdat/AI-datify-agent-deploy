@@ -55,25 +55,10 @@ export const BusinessInsightsPanel: React.FC<BusinessInsightsPanelProps> = ({
     }
   };
 
-  const getMetricName = (metricId: string, ruleId?: string): string => {
-    if (!metricId) return '';
+  const getMetricName = (metricId?: string | null, _ruleId?: string): string => {
+    if (!metricId || metricId === "none" || metricId === "null") return "—";
     const item = BUSINESS_METRIC_CATALOG.find((m) => m.id === metricId);
-    const baseName = item?.name || (item as any)?.label_vi || metricId;
-    const isCodeOnly =
-      ruleId === 'R-NO-MARGIN' ||
-      ruleId === 'R-FEW-ROWS' ||
-      ruleId === 'R-UNLABELED';
-    if (isCodeOnly) {
-      const metricRes = factsTable?.metrics_result?.[metricId];
-      if (metricRes && !metricRes.feasible && metricRes.reason) {
-        return `${baseName} (chưa đo được: ${metricRes.reason})`;
-      }
-      if (ruleId === 'R-NO-MARGIN') {
-        const reason = metricRes?.reason || 'Thiếu cột Giá vốn hoặc Lợi nhuận gộp.';
-        return `${baseName} (chưa đo được: ${reason})`;
-      }
-    }
-    return baseName;
+    return item?.name || (item as any)?.label_vi || metricId;
   };
 
   const hasFindingsData = report && report.findings && report.findings.length > 0;
@@ -289,9 +274,7 @@ export const BusinessInsightsPanel: React.FC<BusinessInsightsPanelProps> = ({
                           </div>
 
                           <div style={{ fontSize: '11px', color: 'var(--ink-soft)', borderTop: '1px dashed var(--border)', paddingTop: '6px' }}>
-                            {act.kpi_metric_id ? (
-                              <div>Đo lường bằng: <strong>{getMetricName(act.kpi_metric_id, act.rule_id)}</strong></div>
-                            ) : null}
+                            <div>Đo lường bằng: <strong>{getMetricName(act.kpi_metric_id, act.rule_id)}</strong></div>
                             <div>Thời hạn kiểm tra: <strong>{act.check_after}</strong></div>
                             {act.source_refs && act.source_refs.length > 0 && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
@@ -422,8 +405,19 @@ export const BusinessInsightsPanel: React.FC<BusinessInsightsPanelProps> = ({
                               </div>
                             </div>
 
+                            {f.hypothesis && (
+                              <div style={{ padding: "6px 10px", borderLeft: "3px solid #8b5cf6", backgroundColor: "#f5f3ff" }}>
+                                <span style={{ fontWeight: 700, color: "#6d28d9", fontSize: "11px", textTransform: "uppercase", display: "block" }}>
+                                  Giả thuyết:
+                                </span>
+                                <div style={{ marginTop: "2px", color: "var(--ink)" }}>
+                                  {stripDataTags(f.hypothesis)}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Layer 4: Action */}
-                            <div style={{ padding: '6px 10px', borderLeft: '3px solid var(--good-d, #16a34a)', backgroundColor: '#f0fdf4' }}>
+                            <div style={{ padding: "6px 10px", borderLeft: "3px solid var(--good-d, #16a34a)", backgroundColor: "#f0fdf4" }}>
                               <span style={{ fontWeight: 700, color: 'var(--good-d, #16a34a)', fontSize: '11px', textTransform: 'uppercase', display: 'block' }}>
                                 Hành động đề xuất:
                               </span>
@@ -431,9 +425,7 @@ export const BusinessInsightsPanel: React.FC<BusinessInsightsPanelProps> = ({
                                 {stripDataTags(f.action)}
                               </div>
                               <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--ink-soft)' }}>
-                                {f.kpi_metric_id ? (
-                                  <span>Đo lường bằng: <strong>{getMetricName(f.kpi_metric_id, f.rule_id)}</strong> • </span>
-                                ) : null}
+                                <span>Đo lường bằng: <strong>{getMetricName(f.kpi_metric_id, f.rule_id)}</strong> • </span>
                                 <span>Thời hạn kiểm tra: <strong>{f.check_after}</strong></span>
                               </div>
                             </div>

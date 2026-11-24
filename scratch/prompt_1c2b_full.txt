@@ -1,0 +1,186 @@
+﻿<USER_REQUEST>
+PROMPT 1C-2b â€” NHIá»€U SHEET + CHá»ŒN Cá»˜T Báº°NG TAY + Sá»¬A NHÃƒN TRáº NG THÃI KHI MÃƒ DÃ’NG Láº¶P + 2 VÃ NHá»Ž UI
+
+Dá»± Ã¡n: Datify AI Agent (pixel-trading-agent). Cháº¿ Ä‘á»™ KINH DOANH.
+ThÆ° má»¥c dá»± Ã¡n: C:\Users\ADMIN\Downloads\Antigravity_IDE - Copy\pixel-trading-agent
+(cÃ³ dáº¥u cÃ¡ch: Test-Path trÆ°á»›c, rá»“i -LiteralPath; Test-Path False thÃ¬ Dá»ªNG vÃ  bÃ¡o).
+ThÆ° má»¥c báº±ng chá»©ng NGOÃ€I repo: C:\Users\ADMIN\Downloads\Antigravity_IDE - Copy\1C2b_evidence\
+Cháº¡y SAU 1C-2a, 1C-2a-FIX, 1C-2a-UI.
+
+============================================================
+0. LUáº¬T CHUNG (vi pháº¡m = há»ng prompt)
+============================================================
+- KhÃ´ng viáº¿t code tá»« trÃ­ nhá»›, khÃ´ng pseudo-code. NÃ³i vá» code tháº­t thÃ¬ in cÃ³ sá»‘ dÃ²ng:
+  $i=0; Get-Content -LiteralPath $p | ForEach-Object { $i++; '{0,5}: {1}' -f $i,$_ } | Select-Object -Skip N -First M
+- Má»i con sá»‘ kÃ¨m OUTPUT THÃ”. Hash dÃ¹ng Get-FileHash SHA256, Ä‘á»§ 64 kÃ½ tá»±.
+- Output dÃ i (code, diff, innerText): ghi ra file trong 1C2b_evidence, in ÄÆ¯á»œNG DáºªN + SHA-256 + 40 DÃ’NG Äáº¦U. KhÃ´ng viáº¿t "Ä‘Ã£ in" thay cho ná»™i dung.
+- Cá»”NG Äá»Ž = Dá»ªNG THáº¬T: ghi vÃ o bÃ¡o cÃ¡o, khÃ´ng tá»± chá»‰nh Ä‘á»ƒ Ä‘i tiáº¿p.
+- Cáº¥m âœ…, "100%", "hoÃ n háº£o", "tuyá»‡t Ä‘á»‘i" náº¿u khÃ´ng kÃ¨m phÃ©p so sÃ¡nh báº±ng sá»‘.
+- Cáº¥m: .env*, git push, npm install, Ä‘á»¥ng cá»•ng 8000, táº¯t tiáº¿n trÃ¬nh cá»§a ngÆ°á»i dÃ¹ng.
+- Cá»•ng: Playwright 8089; ui:audit vÃ  e2e 8088 (AUDIT_PORT), cháº¡y TUáº¦N Tá»° sau khi táº¯t 8089. TrÆ°á»›c má»—i láº§n cháº¡y mÃ¡y chá»§ test: $env:GEMINI_API_KEY_1 = " " vÃ  $env:GEMINI_API_KEY_2 = " ".
+- Háº¿t token: ghi STATUS.md vá»›i dÃ²ng Ä‘áº§u "CHÆ¯A HOÃ€N THÃ€NH", liá»‡t kÃª Ä‘Ã£ xong / chÆ°a xong.
+- Báº£y luáº­t báº¥t biáº¿n: AI khÃ´ng tÃ­nh sá»‘; 2 cá»•ng duyá»‡t cá»§a ngÆ°á»i; chat chá»‰ Ä‘á»c; tá»« chá»‘i sá»›m; cÃ³ fallback khi AI lá»—i; API key chá»‰ á»Ÿ server; khÃ´ng cháº¡y code do AI sinh. Chá»n sheet vÃ  chá»n cá»™t lÃ  thao tÃ¡c cá»§a NGÆ¯á»œI báº±ng nÃºt báº¥m; AI/chat khÃ´ng Ä‘Æ°á»£c chá»n hay Ä‘á»•i há»™.
+- NhÃ£n tráº¡ng thÃ¡i dÃ²ng, sá»‘ liá»‡u vÃ  má»i chá»¯ hiá»ƒn thá»‹ pháº£i láº¥y tá»« dá»¯ liá»‡u file Ä‘ang náº¡p, khÃ´ng gÃµ cá»©ng tÃªn cá»™t/giÃ¡ trá»‹ cá»§a file máº«u.
+
+============================================================
+1. FILE KHÃ“A HASH
+============================================================
+Giá»¯ nguyÃªn:
+- businessCatalog.ts 70941125c8d878b93e299b90d5b28841051de0082c251d52d62153ba9936ea26
+- businessFeasibility.ts c6c63e8f53372b0e67669741ece3b50050773a558d23546ad92dc9815650b24d
+- api/_lib/tasks.ts 6c1a51b304fc259fb13850062441aebdf67bb8b000796db373168a1538a7a851
+- api/_lib/gemini.ts 79bdff76f58d58289e9be114843dd47241c6310406e3bd4e9fd215273d218735
+- factsBuilder.ts cf6614765d4f2c50cfd3a4074365ef971531783a6163b9f5b4388467f351a775
+- businessRoles.ts: hash Ä‘o tháº­t lÃºc báº¯t Ä‘áº§u (hash-before.txt, in Ä‘á»§ 64 kÃ½ tá»±). Prompt nÃ y KHÃ”NG sá»­a file Ä‘Ã³. Náº¿u tháº¥y buá»™c pháº£i sá»­a nÃ³ -> Dá»ªNG, bÃ¡o lÃ½ do, Ä‘á»«ng sá»­a.
+ÄÆ°á»£c sá»­a: validator/business.ts, businessTable.ts, cleaner/businessCleaner.ts, businessAnalyzer.ts (chá»‰ náº¿u cáº§n), FileReadConfirmationPanel.tsx, CleanPage.tsx, UploadPage.tsx, component má»›i, test, script audit/e2e (tá»‘i thiá»ƒu). KhÃ´ng sá»­a scripts/start_local.mjs.
+Liá»‡t kÃª Má»ŒI file sá»­a/thÃªm, hash trÆ°á»›c/sau, diff (ghi ra file ngoÃ i repo + SHA + 40 dÃ²ng Ä‘áº§u).
+
+============================================================
+PHáº¦N A. CHUáº¨N Bá»Š + ÄO Ná»€N (chÆ°a sá»­a gÃ¬)
+============================================================
+A1. Test-Path; backup zip (src, docs, scripts, api, samples) ra 1C2b_evidence\backup-before-1C2b.zip, in byte + SHA.
+A2. Get-FileHash 6 file khÃ³a + má»i file Ä‘á»‹nh sá»­a -> hash-before.txt.
+A3. npm test, ghi sá»‘ file/sá»‘ test ná»n (nÃªu tháº³ng náº¿u khÃ¡c sá»‘ cuá»‘i cá»§a 1C-2a-UI).
+A4. Äo ná»n báº±ng Playwright 8089 (khÃ³a Gemini khoáº£ng tráº¯ng) 7 file: dien-tu-thieu-loi-nhuan, o-to-thieu-kenh-thieu-gia-von, du-lieu-test-ban-le, thieu-gia-von-thieu-san-pham, nha-dat-ty-dong-cham-phay, dien-may-nghin-dong-mo-ho (chá»n cháº¥m=nghÃ¬n), tong-cong-cuoi-file. Láº¥y: tá»•ng Ä‘Æ¡n, doanh thu, giÃ¡ vá»‘n, lá»£i nhuáº­n, cáº£ trÆ°á»›c vÃ  sau lÃ m sáº¡ch -> baseline-before.json. Ká»³ vá»ng: 4 file cÅ© nhÆ° Ä‘Ã¡p Ã¡n Ä‘Ã£ chá»‘t (Ä‘iá»‡n tá»­ sau sáº¡ch 1.248 Ä‘Æ¡n | 5.334.900.000 | giÃ¡ vá»‘n 4.375.065.000; Ã´ tÃ´ 153 Ä‘Æ¡n | 137.400.000.000; bÃ¡n láº» sau sáº¡ch 3.342 Ä‘Æ¡n | 1.135.530.000 | giÃ¡ vá»‘n 603.680.000; thiáº¿u giÃ¡ vá»‘n 723.600.000); nha-dat doanh thu 145.000.000.000; dien-may 16.700.000; tong-cong doanh thu gá»‘c 145.000.000.000, C=12. Lá»‡ch = Cá»”NG Äá»Ž.
+
+============================================================
+PHáº¦N B. Äá»ŒC CODE (chá»‰ Ä‘á»c) â€” in cÃ³ sá»‘ dÃ²ng
+============================================================
+B1. CÃ¡ch app Ä‘á»c .xlsx hiá»‡n nay (thÆ° viá»‡n nÃ o, Ä‘á»c sheet nÃ o, cÃ³ biáº¿t danh sÃ¡ch sheet khÃ´ng). In Ä‘oáº¡n code.
+B2. ÄÆ°á»ng tá»« file -> validateBytes -> businessTable -> resolveBusinessRoles: chá»— nÃ o cÃ³ thá»ƒ chÃ¨n "báº£n Ä‘á»“ cá»™t do ngÆ°á»i chá»n" mÃ  KHÃ”NG sá»­a businessRoles.ts (vÃ­ dá»¥ ghi Ä‘Ã¨ káº¿t quáº£ resolver SAU khi gá»i). In kiá»ƒu RoleStatus vÃ  nÆ¡i catalog/feasibility Ä‘á»c nÃ³. Vai trÃ² do ngÆ°á»i chá»n pháº£i Ä‘Æ°á»£c hiá»ƒu lÃ  'tÃ¬m tháº¥y' Ä‘á»‘i vá»›i catalog/feasibility, kÃ¨m cá» riÃªng userChosen=true á»Ÿ lá»›p cá»§a mÃ¬nh. KhÃ´ng thÃªm giÃ¡ trá»‹ RoleStatus má»›i náº¿u viá»‡c Ä‘Ã³ cháº¡m file khÃ³a.
+B3. CÃ¡ch nhÃ£n "Tráº¡ng thÃ¡i" á»Ÿ báº£ng Ä‘á»‘i chiáº¿u (CleanPage.tsx) so khá»›p dÃ²ng: in Ä‘oáº¡n so khá»›p theo row_id vÃ  theo original_row.
+B4. FileReadConfirmationPanel.tsx: cáº¥u trÃºc hÃ ng hiá»‡n táº¡i, chá»— render nhÃ£n "ÄÃ£ xÃ¡c nháº­n" vÃ  nhÃ£n nguá»“n.
+Káº¿t luáº­n B: 10 dÃ²ng nÃªu tá»«ng viá»‡c sáº½ sá»­a á»Ÿ file/dÃ²ng nÃ o. Viá»‡c nÃ o Ä‘á»¥ng file khÃ³a -> Dá»ªNG, bÃ¡o.
+
+============================================================
+PHáº¦N C. BA FILE TEST Má»šI (táº¡o trong samples/business/, in SHA + byte)
+============================================================
+CSV: UTF-8, káº¿t thÃºc dÃ²ng LF, khÃ´ng BOM. XLSX: táº¡o báº±ng script Node dÃ¹ng thÆ° viá»‡n exceljs cÃ³ sáºµn (khÃ´ng npm install), lÆ°u script ra 1C2b_evidence.
+
+(C1) nhieu-sheet.xlsx â€” 3 sheet theo thá»© tá»±:
+Sheet "Ghi chÃº": Ã´ A1 "BÃ¡o cÃ¡o ná»™i bá»™", A2 "Láº­p bá»Ÿi phÃ²ng kinh doanh", A3 "Xem cÃ¡c sheet bÃªn cáº¡nh".
+Sheet "Doanh thu 2025" (header + 4 dÃ²ng):
+ThÃ¡ng | KÃªnh | Sáº£n pháº©m | Sá»‘ Ä‘Æ¡n | Doanh thu (VND) | GiÃ¡ vá»‘n (VND)
+2025-11 | Website | Ão | 2 | 2000000 | 1200000
+2025-11 | Cá»­a hÃ ng | Ão | 1 | 1000000 | 600000
+2025-12 | Website | Quáº§n | 3 | 6000000 | 3600000
+2025-12 | Cá»­a hÃ ng | Quáº§n | 1 | 2000000 | 1200000
+Sheet "Doanh thu 2026" (cÃ¹ng header + 8 dÃ²ng):
+2026-01 | Website | Ão | 10 | 10000000 | 6000000
+2026-01 | Cá»­a hÃ ng | Ão | 5 | 5000000 | 3000000
+2026-02 | Website | Quáº§n | 8 | 16000000 | 10000000
+2026-02 | Cá»­a hÃ ng | Quáº§n | 4 | 8000000 | 5000000
+2026-03 | Website | Ão | 12 | 12000000 | 7000000
+2026-03 | Cá»­a hÃ ng | Ão | 6 | 6000000 | 3500000
+2026-04 | Website | Quáº§n | 9 | 18000000 | 11000000
+2026-04 | Cá»­a hÃ ng | Quáº§n | 3 | 6000000 | 3800000
+(Sá»‘ ghi dáº¡ng sá»‘, khÃ´ng pháº£i chuá»—i.)
+
+(C2) ma-dong-lap.csv â€” mÃ£ dÃ²ng Láº¶P nhÆ°ng dÃ²ng KHÃC nhau (khÃ´ng pháº£i báº£n trÃ¹ng):
+MÃ£ Ä‘Æ¡n,ThÃ¡ng,KÃªnh,Doanh thu (VND)
+DH-001,2026-01,Website,1000000
+DH-001,2026-01,Website ,2000000
+DH-002,2026-02,Cá»­a hÃ ng,3000000
+DH-003,2026-02,Website,4000000
+DH-003,2026-03,Cá»­a hÃ ng,5000000
+(dÃ²ng 3 cá»§a file cÃ³ dáº¥u cÃ¡ch thá»«a sau "Website".)
+
+(C3) cot-la.csv â€” cá»™t doanh thu cÃ³ tÃªn app khÃ´ng biáº¿t:
+ThÃ¡ng,KÃªnh,Khoáº£n thu KH,GiÃ¡ vá»‘n (VND)
+2026-01,Website,1000000,600000
+2026-01,Cá»­a hÃ ng,2000000,1200000
+2026-02,Website,3000000,1800000
+2026-02,Cá»­a hÃ ng,4000000,2400000
+2026-03,Website,5000000,3000000
+2026-03,Cá»­a hÃ ng,6000000,3600000
+
+ÄÃP ÃN CLAUDE TÃNH TAY (Anti KHÃ”NG Ä‘Æ°á»£c tin: pháº£i tá»± Ä‘o Ä‘á»™c láº­p báº±ng script riÃªng khÃ´ng import code app; lá»‡ch thÃ¬ nÃªu tháº³ng, khÃ´ng chá»‰nh sá»‘ cho khá»›p):
+C1 sheet "Doanh thu 2026": 8 dÃ²ng; sá»‘ Ä‘Æ¡n 57; doanh thu 81.000.000; giÃ¡ vá»‘n 49.300.000; lá»£i nhuáº­n 31.700.000; biÃªn 39,14%; AOV 1.421.052,63; Website 56.000.000, Cá»­a hÃ ng 25.000.000.
+C1 sheet "Doanh thu 2025": 4 dÃ²ng; sá»‘ Ä‘Æ¡n 7; doanh thu 11.000.000; giÃ¡ vá»‘n 6.600.000; lá»£i nhuáº­n 4.400.000; biÃªn 40,00%.
+C1 máº·c Ä‘á»‹nh (khÃ´ng chá»n): pháº£i lÃ  sheet "Doanh thu 2026" (nhiá»u dÃ²ng dá»¯ liá»‡u nháº¥t), vÃ  pháº£i cÃ³ cáº£nh bÃ¡o vÃ¬ sheet "Doanh thu 2025" cÃ¹ng header. Sheet "Ghi chÃº" khÃ´ng Ä‘Æ°á»£c chá»n máº·c Ä‘á»‹nh.
+C2: G=5, B=0, T=0, D=0, C=5; doanh thu 15.000.000; theo kÃªnh: Website 7.000.000, Cá»­a hÃ ng 8.000.000. NhÃ£n "Tráº¡ng thÃ¡i" á»Ÿ báº£ng Ä‘á»‘i chiáº¿u: CHá»ˆ dÃ²ng thá»© 2 (mÃ£ DH-001, dÃ²ng váº­t lÃ½ 3) lÃ  "ÄÃ£ chuáº©n hÃ³a"; dÃ²ng thá»© 1 (cÅ©ng mÃ£ DH-001, dÃ²ng váº­t lÃ½ 2) PHáº¢I lÃ  "-" (khÃ´ng badge). Báº£n code cÅ© cÃ³ thá»ƒ gáº¯n nháº§m cáº£ hai dÃ²ng vÃ¬ so theo mÃ£.
+C3 sau khi ngÆ°á»i dÃ¹ng chá»n "Khoáº£n thu KH" lÃ m Doanh thu: 6 dÃ²ng; doanh thu 21.000.000; giÃ¡ vá»‘n 12.600.000; lá»£i nhuáº­n 8.400.000; biÃªn 40,00%; Website 9.000.000, Cá»­a hÃ ng 12.000.000; theo thÃ¡ng: 2026-01=3.000.000, 2026-02=7.000.000, 2026-03=11.000.000.
+C3 trÆ°á»›c khi chá»n: app bÃ¡o thiáº¿u cá»™t Doanh thu nhÆ° hiá»‡n nay (nÃªu nguyÃªn vÄƒn lÃ½ do app Ä‘Æ°a ra).
+
+Script Ä‘á»™c láº­p: Python (csv.reader, BOM-safe) cho C2, C3; Node/Python Ä‘á»c xlsx báº±ng thÆ° viá»‡n riÃªng cho C1. In báº£ng 3 cá»™t "Claude tÃ­nh tay | script Ä‘á»™c láº­p | app" cÃ¹ng kiá»ƒm tá»•ng tá»«ng dÃ²ng (tá»•ng theo kÃªnh = tá»•ng chung; tá»•ng theo thÃ¡ng = tá»•ng chung).
+Cá»”NG C: script Ä‘á»™c láº­p pháº£i khá»›p Ä‘Ã¡p Ã¡n tay. Lá»‡ch = dá»«ng, in cáº£ hai.
+
+============================================================
+PHáº¦N D. NHIá»€U SHEET (chá»‰ file .xlsx)
+============================================================
+D1. Khi file xlsx cÃ³ >1 sheet cÃ³ dá»¯ liá»‡u: liá»‡t kÃª sheet (tÃªn, sá»‘ dÃ²ng dá»¯ liá»‡u, header). Máº·c Ä‘á»‹nh chá»n sheet cÃ³ nhiá»u dÃ²ng dá»¯ liá»‡u nháº¥t (hÃ²a: sheet Ä‘á»©ng trÆ°á»›c). Sheet chá»‰ cÃ³ 1 cá»™t hoáº·c toÃ n chá»¯ tá»± do khÃ´ng cá»™t sá»‘ thÃ¬ khÃ´ng Ä‘Æ°á»£c máº·c Ä‘á»‹nh.
+D2. Cáº£nh bÃ¡o (dÃ²ng thÃ´ng tin trong khung) khi cÃ³ sheet khÃ¡c cÃ¹ng header vá»›i sheet Ä‘ang chá»n: "Sheet <tÃªn> cÃ³ cÃ¹ng tiÃªu Ä‘á» cá»™t vÃ  KHÃ”NG Ä‘Æ°á»£c gá»™p." KhÃ´ng tá»± gá»™p.
+D3. ThÃªm HÃ€NG CHá»ŒN SHEET vÃ o khung "XÃC NHáº¬N CÃCH Äá»ŒC FILE" (component cÃ³ sáºµn, cÃ¹ng kiá»ƒu nÃºt): má»—i sheet má»™t nÃºt, sheet Ä‘ang chá»n Ä‘Æ°á»£c Ä‘Ã¡nh dáº¥u. Äá»•i sheet = náº¡p láº¡i vÃ  tÃ­nh láº¡i TOÃ€N Bá»˜ (lÃ m sáº¡ch, há»“ sÆ¡, KPI, thanh dÆ°á»›i, cÃ¡c lá»±a chá»n Ä‘Æ¡n vá»‹/dáº¥u sá»‘/cá»™t), khÃ´ng dÃ­nh sá»‘ cÅ©; cÃ¡c xÃ¡c nháº­n trÆ°á»›c Ä‘Ã³ bá»‹ xÃ³a vÃ¬ thuá»™c sheet cÅ©.
+D4. File 1 sheet hoáº·c CSV: KHÃ”NG hiá»‡n hÃ ng chá»n sheet.
+D5. NÃºt DUYá»†T bá»‹ khÃ³a khi cÃ³ hÃ ng chÆ°a xÃ¡c nháº­n (nhÆ° cÆ¡ cháº¿ hiá»‡n cÃ³). HÃ ng chá»n sheet hiá»‡n ra nhÆ°ng KHÃ”NG báº¯t buá»™c báº¥m náº¿u máº·c Ä‘á»‹nh Ä‘Ã£ há»£p lÃ½ (chá»‰ lÃ  thÃ´ng tin + cho Ä‘á»•i). NÃªu rÃµ lÃ½ do khÃ³a/khÃ´ng khÃ³a á»Ÿ thanh dÆ°á»›i theo cÆ¡ cháº¿ C4 cá»§a 1C-2a-UI.
+
+============================================================
+PHáº¦N E. CHá»ŒN Cá»˜T Báº°NG TAY
+============================================================
+E1. HÃ ng "Cá»™t Ä‘Ã£ nháº­n diá»‡n" trong khung: vá»›i má»—i vai trÃ² (Doanh thu, Sá»‘ Ä‘Æ¡n, GiÃ¡ vá»‘n, Lá»£i nhuáº­n, Sáº£n pháº©m, KÃªnh, Khu vá»±c, ThÃ¡ng) hiá»‡n: tÃªn cá»™t app tÃ¬m tháº¥y (hoáº·c "khÃ´ng tÃ¬m tháº¥y"), nguá»“n ("tá»± nháº­n diá»‡n" / "ngÆ°á»i dÃ¹ng chá»n"), vÃ  má»™t danh sÃ¡ch chá»n (dropdown hoáº·c nhÃ³m nÃºt theo kiá»ƒu app Ä‘ang dÃ¹ng) liá»‡t kÃª cÃ¡c cá»™t trong file + lá»±a chá»n "KhÃ´ng dÃ¹ng cá»™t nÃ o".
+E2. Quy táº¯c tá»« chá»‘i (do CODE quyáº¿t, kÃ¨m lÃ½ do má»™t dÃ²ng, khÃ´ng Ä‘á»•i tráº¡ng thÃ¡i):
+ - Vai trÃ² Doanh thu/Sá»‘ Ä‘Æ¡n/GiÃ¡ vá»‘n/Lá»£i nhuáº­n: cá»™t Ä‘Æ°á»£c chá»n pháº£i lÃ  cá»™t Sá» (>= 80% Ã´ cÃ³ giÃ¡ trá»‹ parse Ä‘Æ°á»£c). Cá»™t chá»¯ -> tá»« chá»‘i: "Cá»™t nÃ y toÃ n chá»¯, khÃ´ng dÃ¹ng lÃ m <vai trÃ²> Ä‘Æ°á»£c."
+ - Má»™t cá»™t khÃ´ng Ä‘Æ°á»£c gÃ¡n cho 2 vai trÃ² cÃ¹ng lÃºc: tá»« chá»‘i, nÃªu rÃµ cá»™t Ä‘ang giá»¯ vai trÃ² nÃ o.
+ - Cá»™t sá»‘ nhÆ°ng toÃ n 0 / Ã¢m / giá»‘ng nhau: váº«n cháº¡y kiá»ƒm "khÃ´ng Ä‘Ã¡ng tin" nhÆ° resolver. Náº¿u bá»‹ coi khÃ´ng Ä‘Ã¡ng tin: cho dÃ¹ng nhÆ°ng gáº¯n cáº£nh bÃ¡o vÃ  Ä‘á»™ tin cáº­y khÃ´ng Ä‘Æ°á»£c ghi CAO (náº¿u app cÃ³ chá»— hiá»ƒn thá»‹).
+E3. Cá»™t do ngÆ°á»i dÃ¹ng chá»n: nhÃ£n nguá»“n "ngÆ°á»i dÃ¹ng chá»n". Má»i chá»¯ giao diá»‡n/bÃ¡o cÃ¡o gá»i tÃªn cá»™t theo TÃŠN Cá»˜T THáº¬T trong file.
+E4. Äá»•i cá»™t => tÃ­nh láº¡i toÃ n bá»™ (lÃ m sáº¡ch, há»“ sÆ¡, Ä‘Æ¡n vá»‹, dáº¥u sá»‘, KPI, thanh dÆ°á»›i); cÃ¡c xÃ¡c nháº­n Ä‘Æ¡n vá»‹/dáº¥u sá»‘ cá»§a cá»™t bá»‹ Ä‘á»•i bá»‹ xÃ³a vÃ  há»i láº¡i.
+E5. Khi Ä‘Ã£ chá»n cá»™t, pháº£i qua Ä‘Æ°á»£c resolveBusinessRoles/catalog/feasibility nhÆ° vai trÃ² bÃ¬nh thÆ°á»ng mÃ  khÃ´ng sá»­a file khÃ³a (xem B2). Chá»‰ ra báº±ng output thÃ´: sau khi chá»n "Khoáº£n thu KH" lÃ m Doanh thu á»Ÿ C3, danh sÃ¡ch kháº£ thi cho tháº¥y cÃ¡c chá»‰ sá»‘ cáº§n doanh thu chuyá»ƒn sang tÃ­nh Ä‘Æ°á»£c (in báº£ng).
+E6. KhÃ´ng táº¡o Ä‘Æ°á»ng cho AI/chat chá»n cá»™t hoáº·c xÃ¡c nháº­n há»™.
+
+============================================================
+PHáº¦N F. Sá»¬A NHÃƒN TRáº NG THÃI KHI MÃƒ DÃ’NG Láº¶P
+============================================================
+F1. Báº£ng Ä‘á»‘i chiáº¿u: so khá»›p dÃ²ng pháº£i Æ°u tiÃªn sá»‘ dÃ²ng váº­t lÃ½ (source_row/original_row) khi cá»™t mÃ£ cÃ³ giÃ¡ trá»‹ láº·p; chá»‰ so theo row_id khi mÃ£ lÃ  DUY NHáº¤T trong toÃ n báº£ng. KhÃ´ng Ä‘á»•i cÃ¡ch tÃ­nh sá»‘ liá»‡u hay cÃ¡ch lÃ m sáº¡ch.
+F2. Nghiá»‡m thu báº±ng C2: dÃ²ng váº­t lÃ½ 3 lÃ  "ÄÃ£ chuáº©n hÃ³a", dÃ²ng váº­t lÃ½ 2 lÃ  "-". In innerText cá»™t Tráº¡ng thÃ¡i nguyÃªn vÄƒn.
+F3. Cháº¡y láº¡i 4 file cÅ©: nhÃ£n Tráº¡ng thÃ¡i pháº£i y há»‡t trÆ°á»›c khi sá»­a (Ä‘iá»‡n tá»­: chá»‰ DT-004 ÄÃƒ ÄIá»€N, DT-006 vÃ  DT-010 ÄÃƒ CHUáº¨N HÃ“A; Ã´ tÃ´: khÃ´ng nhÃ£n nÃ o; bÃ¡n láº»: DS-003, 015, 032, 045 chuáº©n hÃ³a, DS-009, 024, 039 Ä‘iá»n). In báº£ng trÆ°á»›c/sau.
+
+============================================================
+PHáº¦N G. HAI VÃ NHá»Ž UI (khÃ´ng Ä‘á»•i sá»‘)
+============================================================
+G1. NÃºt/hÃ ng Ä‘Ã£ xÃ¡c nháº­n: chá»¯ "ÄÃ£ xÃ¡c nháº­n" pháº£i rÃµ rÃ ng, tÆ°Æ¡ng pháº£n, Ä‘á»c Ä‘Æ°á»£c (hiá»‡n táº¡i má», nÃ©t Ä‘á»©t nhÆ° nÃºt bá»‹ vÃ´ hiá»‡u). NÃºt nÃ y khÃ´ng cÃ²n lÃ  nÃºt báº¥m Ä‘Æ°á»£c thÃ¬ dÃ¹ng nhÃ£n tÄ©nh mÃ u thÃ nh cÃ´ng, chá»¯ Ä‘áº­m, khÃ´ng dÃ¹ng hiá»‡u á»©ng dither/má». Äo tá»‰ lá»‡ tÆ°Æ¡ng pháº£n mÃ u chá»¯/ná»n báº±ng Playwright (getComputedStyle), in sá»‘; yÃªu cáº§u >= 4,5. DÃ¹ng font="content" cho chá»¯ cÃ³ dáº¥u.
+G2. NhÃ£n nguá»“n bÃªn cáº¡nh má»—i hÃ ng Ä‘Æ¡n vá»‹/dáº¥u sá»‘: trÆ°á»›c khi báº¥m xÃ¡c nháº­n ghi "Ä‘Ã£ chá»n, chÆ°a xÃ¡c nháº­n" (náº¿u khÃ¡ch Ä‘Ã£ Ä‘á»•i nÃºt) hoáº·c nguá»“n gá»‘c ("Ä‘á»c tá»« tiÃªu Ä‘á» cá»™t" / "máº·c Ä‘á»‹nh"); SAU khi báº¥m "ÄÃšNG, XÃC NHáº¬N" ghi "ngÆ°á»i dÃ¹ng xÃ¡c nháº­n". Test (vitest) cho ba tráº¡ng thÃ¡i.
+
+============================================================
+PHáº¦N H. TEST + NGHIá»†M THU CHROME THáº¬T
+============================================================
+H1. File má»›i src/tests/prompt1c2b_verification.test.ts, gá»i Ä‘Æ°á»ng tháº­t (khÃ´ng dá»±ng state báº±ng tay): chá»n sheet máº·c Ä‘á»‹nh; cáº£nh bÃ¡o sheet cÃ¹ng header; Ä‘á»•i sheet tÃ­nh láº¡i; tá»« chá»‘i cá»™t chá»¯ lÃ m Doanh thu; tá»« chá»‘i má»™t cá»™t cho 2 vai trÃ²; chá»n "Khoáº£n thu KH" cho Ä‘Ãºng C3; nhÃ£n tráº¡ng thÃ¡i C2; nhÃ£n nguá»“n G2; khÃ´ng cÃ³ hÃ ng chá»n sheet vá»›i CSV.
+H2. Playwright 8089, báº£n build má»›i (in dÃ²ng build, hash dist\index.html). Vá»›i má»—i file lÆ°u innerText Cá»•ng 1 NGUYÃŠN VÄ‚N ra file ngoÃ i repo (Ä‘Æ°á»ng dáº«n + SHA + 40 dÃ²ng Ä‘áº§u) vÃ  áº£nh (SHA-256), viewport 1366x768, báº¥m báº±ng chuá»™t tháº­t (page.mouse.click táº¡i tá»a Ä‘á»™, khÃ´ng force, khÃ´ng cuá»™n tá»± Ä‘á»™ng Ä‘á»ƒ "chá»©ng minh"):
+ (a) C1: náº¡p xlsx -> hÃ ng chá»n sheet hiá»‡n, máº·c Ä‘á»‹nh "Doanh thu 2026", cáº£nh bÃ¡o cÃ¹ng header; Ä‘á»c sá»‘ tá»•ng sang trang phÃ¢n tÃ­ch/bÃ¡o cÃ¡o, so Ä‘Ã¡p Ã¡n; Ä‘á»•i sang "Doanh thu 2025" -> sá»‘ Ä‘á»•i Ä‘Ãºng Ä‘Ã¡p Ã¡n, xÃ¡c nháº­n cÅ© bá»‹ xÃ³a; Ä‘á»•i láº¡i.
+ (b) C2: báº£ng Ä‘á»‘i chiáº¿u, cá»™t Tráº¡ng thÃ¡i Ä‘Ãºng F2.
+ (c) C3: ban Ä‘áº§u bÃ¡o thiáº¿u Doanh thu; chá»n "Khoáº£n thu KH" -> sá»‘ Ä‘Ãºng Ä‘Ã¡p Ã¡n; thá»­ chá»n cá»™t "KÃªnh" lÃ m Doanh thu -> bá»‹ tá»« chá»‘i kÃ¨m lÃ½ do; thá»­ chá»n "GiÃ¡ vá»‘n (VND)" lÃ m Doanh thu -> bá»‹ tá»« chá»‘i (cá»™t Ä‘ang giá»¯ vai trÃ² GiÃ¡ vá»‘n).
+ (d) 7 file á»Ÿ A4: sau 1C-2b, baseline-after.json GIá»NG Há»†T baseline-before.json tá»«ng sá»‘; hÃ ng chá»n sheet vÃ  hÃ ng chá»n cá»™t khÃ´ng lÃ m khÃ³a nÃºt DUYá»†T á»Ÿ file cÅ© khi má»i vai trÃ² Ä‘Ã£ nháº­n diá»‡n Ä‘Ãºng (nÃªu nguyÃªn vÄƒn). KhÃ´ng hÃ ng há»i má»›i nÃ o xuáº¥t hiá»‡n á»Ÿ 4 file cÅ© ngoÃ i hÃ ng "Cá»™t Ä‘Ã£ nháº­n diá»‡n" thÃ´ng tin.
+ (e) Creeper váº«n khÃ´ng che nÃºt nÃ o á»Ÿ Cá»•ng 1 sau khi khung dÃ i thÃªm (Ä‘o getBoundingClientRect + elementFromPoint á»Ÿ tÃ¢m nÃºt DUYá»†T vÃ  nÃºt ÄÃšNG, XÃC NHáº¬N cuá»‘i; in nguyÃªn vÄƒn) á»Ÿ viewport 1366x768 vÃ  1093x614.
+ (f) QuÃ©t innerText tÃ¬m chuá»—i cá»§a file khÃ¡c: "Website", "SÃ n thÆ°Æ¡ng máº¡i", "DS-", "Ão thun" (chá»‰ coi lÃ  lá»—i khi xuáº¥t hiá»‡n á»Ÿ file khÃ´ng chá»©a chÃºng; C1 vÃ  C2 cÃ³ "Website" tháº­t).
+
+============================================================
+PHáº¦N I. KIá»‚M THá»¬ TUáº¦N Tá»° (táº¯t 8089; AUDIT_PORT=8088; tá»«ng lá»‡nh má»™t)
+============================================================
+npm test; npm run predeploy; npm run ui:audit; npm run e2e. In sá»‘ file, sá»‘ test, EXIT CODE. Script audit/e2e gÃ£y vÃ¬ khung má»›i thÃ¬ sá»­a Tá»I THIá»‚U, dÃ¡n diff, khÃ´ng háº¡ ngÆ°á»¡ng, khÃ´ng bá» bÆ°á»›c.
+Cuá»‘i: Get-FileHash láº¡i; 6 file khÃ³a PHáº¢I khá»›p hash-before.txt; hash-after.txt; liá»‡t kÃª má»i file Ä‘á»•i.
+
+============================================================
+PHáº¦N J. KHÃ”NG ÄÆ¯á»¢C LÃ€M
+============================================================
+- KhÃ´ng sá»­a 6 file khÃ³a (ká»ƒ cáº£ businessRoles.ts); khÃ´ng Ä‘á»•i catalog/feasibility/factsBuilder/prompt AI.
+- KhÃ´ng Ä‘á»•i con sá»‘, logic parse sá»‘, lÃ m sáº¡ch, Ä‘Æ¡n vá»‹, dÃ²ng tá»•ng Ä‘Ã£ lÃ m á»Ÿ 1C-2a.
+- KhÃ´ng tá»± gá»™p nhiá»u sheet; khÃ´ng tá»± Ä‘oÃ¡n cá»™t rá»“i cháº¡y khi ngÆ°á»i dÃ¹ng Ä‘Ã£ chá»n khÃ¡c.
+- KhÃ´ng gá»¡ khá»‘i "YÃŠU Cáº¦U PHÃ‚N TÃCH Cá»¦A Báº N" (Ä‘á»ƒ 2A).
+- KhÃ´ng Ä‘á»ƒ AI/chat chá»n sheet/cá»™t/xÃ¡c nháº­n.
+- KhÃ´ng háº¡ ngÆ°á»¡ng test; khÃ´ng sá»­a Ä‘Ã¡p Ã¡n cho khá»›p app; khÃ´ng click Ã©p.
+
+============================================================
+PHáº¦N K. MáºªU BÃO CÃO (Ä‘Ã¡nh sá»‘, Ä‘á»§ má»¥c, theo thá»© tá»±)
+============================================================
+1 Test-Path + backup. 2 Báº£ng hash trÆ°á»›c/sau (Ä‘á»§ 64 kÃ½ tá»±). 3 Äo ná»n A4. 4 Káº¿t luáº­n B (10 dÃ²ng), kÃ¨m: chá»— chÃ¨n báº£n Ä‘á»“ cá»™t mÃ  khÃ´ng Ä‘á»¥ng businessRoles.ts. 5 Ba SHA file test má»›i + báº£ng 3 cá»™t Ä‘Ã¡p Ã¡n tay | script Ä‘á»™c láº­p | app (C1 hai sheet, C2, C3). 6 Danh sÃ¡ch file/dÃ²ng sá»­a + diff (Ä‘Æ°á»ng dáº«n + SHA + 40 dÃ²ng Ä‘áº§u). 7 Káº¿t quáº£ H2 tá»«ng bÆ°á»›c: innerText nguyÃªn vÄƒn, áº£nh (SHA), báº£ng trÆ°á»›c/sau 7 file, báº£ng trÆ°á»›c/sau nhÃ£n Tráº¡ng thÃ¡i 4 file cÅ©, sá»‘ tÆ°Æ¡ng pháº£n G1, tá»a Ä‘á»™ Creeper. 8 Output thÃ´ 4 lá»‡nh Pháº§n I. 9 NÃŠU THáº²NG: má»i sai lá»‡ch, má»i chá»— khÃ¡c prompt, má»i chá»— tá»± quyáº¿t, má»i file sá»­a ngoÃ i dá»± kiáº¿n, má»i lá»‡ch giá»¯a cÃ¡c nguá»“n sá»‘. KhÃ´ng cÃ³ sai lá»‡ch thÃ¬ ghi "khÃ´ng cÃ³" kÃ¨m báº£ng sá»‘.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-11-21T01:53:36+07:00.
+
+The user's current state is as follows:
+Other open documents:
+- c:\Users\ADMIN\Downloads\Antigravity_IDE - Copy\pixel-trading-agent\src\core\validator\business.ts (LANGUAGE_UNSPECIFIED)
+- c:\Users\ADMIN\Downloads\Antigravity_IDE - Copy\pixel-trading-agent\scripts\run_e2e_1x.mjs (LANGUAGE_UNSPECIFIED)
+- c:\Users\ADMIN\Downloads\Antigravity_IDE - Copy\pixel-trading-agent\src\core\metrics\businessRoles.test.ts (LANGUAGE_UNSPECIFIED)
+- c:\Users\ADMIN\Downloads\Antigravity_IDE - Copy\pixel-trading-agent\src\core\metrics\businessRoles.ts (LANGUAGE_UNSPECIFIED)
+- c:\Users\ADMIN\Downloads\Antigravity_IDE - Copy\pixel-trading-agent\src\components\clean\FileReadConfirmationPanel.tsx (LANGUAGE_UNSPECIFIED)
+</ADDITIONAL_METADATA>

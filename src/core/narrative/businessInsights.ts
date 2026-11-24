@@ -55,6 +55,7 @@ export interface BusinessInsightsReport {
   generated_at: string;
   // Prompt 5A: 4-Layer Findings & Action Priority
   findings: InsightFinding[];
+  empty_message?: string | null;
   priority_actions: InsightActionPriority[];
   key_takeaways: string[];
   // Two-tier fields (Prompt 3B)
@@ -650,6 +651,7 @@ export function buildTemplateBusinessInsights(
     findings,
     priority_actions,
     key_takeaways,
+    empty_message: engineOutput.emptyMessage,
     summary,
     by_metric,
     followups,
@@ -673,15 +675,15 @@ export function verifyBusinessInsightsOutput(
   factsTable: FactsTable,
   meta: VerifyInsightsMeta
 ): BusinessInsightsReport {
-  const factMap = new Map<string, FactItem>(factsTable.facts.map((f) => [f.id, f]));
-  const allFactNums = collectAllowedNumbersForEvidence(Array.from(factMap.keys()), factMap);
-  const rejectedReasons: string[] = [];
-  let rejectedCount = 0;
-
   const templateReport = buildTemplateBusinessInsights(factsTable, {
     latency_ms: meta.latency_ms,
     feedback_applied: meta.feedback_applied,
   });
+
+  const factMap = new Map<string, FactItem>(factsTable.facts.map((f) => [f.id, f]));
+  const allFactNums = collectAllowedNumbersForEvidence(Array.from(factMap.keys()), factMap);
+  const rejectedReasons: string[] = [];
+  let rejectedCount = 0;
 
   if (!rawPayload || typeof rawPayload !== 'object') {
     return buildTemplateBusinessInsights(factsTable, {
@@ -790,7 +792,12 @@ export function verifyBusinessInsightsOutput(
     const isCodeOnlyFinding =
       tmplFinding.rule_id === 'R-NO-MARGIN' ||
       tmplFinding.rule_id === 'R-FEW-ROWS' ||
-      tmplFinding.rule_id === 'R-UNLABELED';
+      tmplFinding.rule_id === 'R-UNLABELED' ||
+      tmplFinding.aiRewrite === false;
+    if (isCodeOnlyFinding) {
+      verifiedFindings.push(tmplFinding);
+      continue;
+    }
     if (findingValid && !isCodeOnlyFinding && factsTable.metrics_result) {
       const feasibleSet = new Set(
         Object.entries(factsTable.metrics_result)
@@ -829,11 +836,17 @@ export function verifyBusinessInsightsOutput(
         evidence,
         meaning,
         opportunity_risk: oppRisk,
+        hypothesis: tmplFinding.hypothesis,
         action,
-        kpi_metric_id: kpiMetricId,
+        kpi_metric_id: kpiMetricId || null,
         check_after: checkAfter,
         source_refs: validRefs,
         isQuestionRelated: tmplFinding.isQuestionRelated,
+        relatedMetricIds: tmplFinding.relatedMetricIds,
+        aiRewrite: tmplFinding.aiRewrite,
+        kind: tmplFinding.kind,
+        dimension: tmplFinding.dimension,
+        priority: tmplFinding.priority,
       });
       hasAiFindingAccepted = true;
     } else {
@@ -859,8 +872,9 @@ export function verifyBusinessInsightsOutput(
   const seenKpiActions = new Set<string>();
   for (const f of verifiedFindings) {
     if (priority_actions.length >= 3) break;
-    if (!seenKpiActions.has(f.kpi_metric_id)) {
-      seenKpiActions.add(f.kpi_metric_id);
+    const kpiKey = f.kpi_metric_id ?? f.action;
+    if (!seenKpiActions.has(kpiKey)) {
+      seenKpiActions.add(kpiKey);
       priority_actions.push({
         action: f.action,
         kpi_metric_id: f.kpi_metric_id,
