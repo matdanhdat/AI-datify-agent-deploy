@@ -154,11 +154,12 @@ export function normalizeContext(
   input: unknown,
   options?: { allowEmptyQuestions?: boolean }
 ): NormalizeContextResult {
-  if (!input || typeof input !== 'object') {
+  const effectiveInput = input == null && options?.allowEmptyQuestions ? {} : input;
+  if (!effectiveInput || typeof effectiveInput !== 'object') {
     return { ok: false, error: 'Dữ liệu bối cảnh không hợp lệ.' };
   }
 
-  const raw = input as Record<string, unknown>;
+  const raw = effectiveInput as Record<string, unknown>;
 
   const cleanStr = (val: unknown): string => {
     if (typeof val !== 'string') return '';

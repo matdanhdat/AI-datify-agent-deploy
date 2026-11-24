@@ -231,22 +231,29 @@ export const UploadPage: React.FC = () => {
         .map((l) => l.trim())
         .filter((l) => l.length > 0);
 
+      const existingQuestions = session.business_context?.analysis_questions || [];
+      const questionsToSave = isBusinessMode
+        ? (rawQuestions.length > 0 ? rawQuestions : existingQuestions)
+        : rawQuestions;
+
       const res = normalizeContext(
         {
           company_name: cName,
           role: r,
           extra_info: extra,
-          analysis_questions: isBusinessMode ? [] : rawQuestions,
+          analysis_questions: questionsToSave,
         },
         { allowEmptyQuestions: isBusinessMode }
       );
 
       if (!res.ok) {
         const errMsg = res.error || 'Dữ liệu bối cảnh không hợp lệ.';
-        if (extra.trim().length > EXTRA_INFO_MAX_CHARS) {
-          setFieldErrors({ extra_info: vi.contextForm.extraInfoLimitError });
+        if (extra.length > EXTRA_INFO_MAX_CHARS || extra.trim().length > EXTRA_INFO_MAX_CHARS) {
+          setFieldErrors((prev) => ({ ...prev, extra_info: vi.contextForm.extraInfoLimitError }));
+        } else if (!isBusinessMode && errMsg.includes('yêu cầu phân tích')) {
+          setFieldErrors((prev) => ({ ...prev, analysis_questions: errMsg }));
         } else {
-          setFieldErrors({ general: errMsg });
+          setFieldErrors((prev) => ({ ...prev, general: errMsg }));
         }
         return;
       }
@@ -259,26 +266,36 @@ export const UploadPage: React.FC = () => {
       }
 
       try {
-        setBusinessContext(session.id, res.data!);
+        setBusinessContext(session.id, res.data!, { allowEmptyQuestions: isBusinessMode });
         setContextSaved(true);
         setTimeout(() => setContextSaved(false), 2000);
       } catch (err: any) {
-        showToast({ type: 'error', title: 'Lỗi lưu bối cảnh', message: err.message });
+        if (!isBusinessMode || !err.message?.includes('yêu cầu phân tích')) {
+          showToast({ type: 'error', title: 'Lỗi lưu bối cảnh', message: err.message });
+        }
       }
     },
-    [session, companyName, userRole, extraInfo, questionsText, showToast]
+    [session, companyName, userRole, extraInfo, questionsText, isBusinessMode, showToast]
   );
 
   const handleConfirmReportApprovedEdit = () => {
     if (!session) return;
-    const res = normalizeContext({
-      company_name: companyName,
-      role: userRole,
-      extra_info: extraInfo,
-      analysis_questions: parsedQuestions,
-    });
+    const existingQuestions = session.business_context?.analysis_questions || [];
+    const questionsToSave = isBusinessMode
+      ? (parsedQuestions.length > 0 ? parsedQuestions : existingQuestions)
+      : parsedQuestions;
+
+    const res = normalizeContext(
+      {
+        company_name: companyName,
+        role: userRole,
+        extra_info: extraInfo,
+        analysis_questions: questionsToSave,
+      },
+      { allowEmptyQuestions: isBusinessMode }
+    );
     if (res.ok) {
-      setBusinessContext(session.id, res.data!);
+      setBusinessContext(session.id, res.data!, { allowEmptyQuestions: isBusinessMode });
       setShowReportApprovedConfirm(false);
       setContextSaved(true);
       setTimeout(() => setContextSaved(false), 2000);
@@ -335,7 +352,16 @@ export const UploadPage: React.FC = () => {
     setLimitNotice(null);
     setFieldErrors({});
     if (session) {
-      setBusinessContext(session.id, { analysis_questions: [] });
+      setBusinessContext(
+        session.id,
+        {
+          company_name: '',
+          role: '',
+          extra_info: '',
+          analysis_questions: [],
+        },
+        { allowEmptyQuestions: isBusinessMode }
+      );
     }
     setShowClearContextConfirm(false);
   };
@@ -800,11 +826,13 @@ export const UploadPage: React.FC = () => {
               id={extraInfoId}
               rows={4}
               value={extraInfo}
-              maxLength={EXTRA_INFO_MAX_CHARS}
               placeholder={vi.contextForm.extraInfoPlaceholder}
               onChange={(e) => {
-                setExtraInfo(e.target.value);
-                if (fieldErrors.extra_info && e.target.value.length <= EXTRA_INFO_MAX_CHARS) {
+                const val = e.target.value;
+                setExtraInfo(val);
+                if (val.length > EXTRA_INFO_MAX_CHARS) {
+                  setFieldErrors((prev) => ({ ...prev, extra_info: vi.contextForm.extraInfoLimitError }));
+                } else if (fieldErrors.extra_info) {
                   setFieldErrors((prev) => {
                     const next = { ...prev };
                     delete next.extra_info;
@@ -852,7 +880,7 @@ export const UploadPage: React.FC = () => {
 
             {/* Soft warning (< 40 chars) or confirmation (>= 40 chars) via aria-live */}
             <div aria-live="polite" style={{ marginTop: '8px' }}>
-              {!extraInfoHasEnoughContext ? (
+              {extraInfo.length > EXTRA_INFO_MAX_CHARS || fieldErrors.extra_info ? null : !extraInfoHasEnoughContext ? (
                 <div
                   role="status"
                   data-testid="extra-info-warning"
@@ -874,24 +902,27 @@ export const UploadPage: React.FC = () => {
                   <span>{vi.contextForm.extraInfoEmptyWarning}</span>
                 </div>
               ) : (
-                <div
-                  role="status"
-                  data-testid="extra-info-confirm"
-                  style={{
-                    padding: '6px 10px',
-                    backgroundColor: 'var(--good-bg)',
-                    border: '1px solid var(--good-d)',
-                    color: 'var(--good-d)',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <PixelIcon name="check" size={14} color="var(--good-d)" />
-                  <span>{vi.contextForm.extraInfoSavedConfirm}</span>
-                </div>
+                session?.business_context?.extra_info &&
+                session.business_context.extra_info === extraInfo.trim() && (
+                  <div
+                    role="status"
+                    data-testid="extra-info-confirm"
+                    style={{
+                      padding: '6px 10px',
+                      backgroundColor: 'var(--good-bg)',
+                      border: '1px solid var(--good-d)',
+                      color: 'var(--good-d)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <PixelIcon name="check" size={14} color="var(--good-d)" />
+                    <span>{vi.contextForm.extraInfoSavedConfirm}</span>
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -916,8 +947,8 @@ export const UploadPage: React.FC = () => {
                       parsedQuestions.length > MAX_ANALYSIS_QUESTIONS
                         ? 'var(--bad)'
                         : parsedQuestions.length === 0
-                        ? 'var(--ink-soft)'
-                        : 'var(--good-d)',
+                          ? 'var(--ink-soft)'
+                          : 'var(--good-d)',
                   }}
                 >
                   {parsedQuestions.length}/{MAX_ANALYSIS_QUESTIONS} câu
@@ -1404,24 +1435,24 @@ export const UploadPage: React.FC = () => {
                                     col.role === 'measure'
                                       ? 'success'
                                       : col.role === 'dimension'
-                                      ? 'info'
-                                      : col.role === 'time'
-                                      ? 'info'
-                                      : col.role === 'id'
-                                      ? 'warn'
-                                      : 'neutral'
+                                        ? 'info'
+                                        : col.role === 'time'
+                                          ? 'info'
+                                          : col.role === 'id'
+                                            ? 'warn'
+                                            : 'neutral'
                                   }
                                   size="sm"
                                 >
                                   {col.role === 'measure'
                                     ? 'Số liệu (measure)'
                                     : col.role === 'dimension'
-                                    ? 'Phân loại (dimension)'
-                                    : col.role === 'time'
-                                    ? 'Thời gian (time)'
-                                    : col.role === 'id'
-                                    ? 'Mã dòng (id)'
-                                    : 'Bỏ qua (ignored)'}
+                                      ? 'Phân loại (dimension)'
+                                      : col.role === 'time'
+                                        ? 'Thời gian (time)'
+                                        : col.role === 'id'
+                                          ? 'Mã dòng (id)'
+                                          : 'Bỏ qua (ignored)'}
                                 </PixelBadge>
                               </td>
                               <td style={{ padding: '8px 12px', color: 'var(--ink-soft)' }}>

@@ -150,5 +150,103 @@ describe('In-Memory Session Service', () => {
     expect(currentSession.state).toBe('analyzed');
     expect(currentSession.report_status).toBe('draft');
   });
+
+  describe('Prompt FIX-CONTEXT: Business vs Trading Context Validation', () => {
+    it('(1) business: lưu bối cảnh có chữ, không câu hỏi → thành công', () => {
+      const s = createSession('Biz Test 1');
+      const ctx = setBusinessContext(
+        s.id,
+        {
+          company_name: 'An Phát',
+          role: 'Chủ shop',
+          extra_info: 'Bán quần áo thời trang',
+          analysis_questions: [],
+        },
+        { allowEmptyQuestions: true }
+      );
+      expect(ctx.company_name).toBe('An Phát');
+      expect(ctx.role).toBe('Chủ shop');
+      expect(ctx.extra_info).toBe('Bán quần áo thời trang');
+      expect(ctx.analysis_questions.length).toBe(0);
+    });
+
+    it('(2) business: bối cảnh rỗng → thành công', () => {
+      const s = createSession('Biz Test 2');
+      const ctx = setBusinessContext(s.id, {}, { allowEmptyQuestions: true });
+      expect(ctx.analysis_questions.length).toBe(0);
+      expect(ctx.company_name).toBeUndefined();
+    });
+
+    it('(3) business: chữ vượt 2.000 ký tự → lỗi đúng lý do, không phải lỗi câu hỏi', () => {
+      const s = createSession('Biz Test 3');
+      expect(() =>
+        setBusinessContext(s.id, { extra_info: 'a'.repeat(2001) }, { allowEmptyQuestions: true })
+      ).toThrowError(/Thông tin bổ sung tối đa 2\.000 ký tự\./);
+      try {
+        setBusinessContext(s.id, { extra_info: 'a'.repeat(2001) }, { allowEmptyQuestions: true });
+      } catch (err: any) {
+        expect(err.message).not.toContain('yêu cầu phân tích');
+      }
+    });
+
+    it('(4) trading: không câu hỏi → vẫn lỗi CONTEXT_REQUIRED', () => {
+      const s = createSession('Trading Test 4');
+      sessionStore.getRecord(s.id)!.meta.dataset = { kind: 'trading' } as any;
+      expect(() =>
+        setBusinessContext(
+          s.id,
+          { company_name: 'Trading Co', extra_info: 'Swing trade' },
+          { allowEmptyQuestions: false }
+        )
+      ).toThrowError(/Bạn cần nhập ít nhất một yêu cầu phân tích\./);
+    });
+
+    it('(5) trading: có câu hỏi → thành công', () => {
+      const s = createSession('Trading Test 5');
+      sessionStore.getRecord(s.id)!.meta.dataset = { kind: 'trading' } as any;
+      const ctx = setBusinessContext(
+        s.id,
+        { company_name: 'Trading Co', analysis_questions: ['Mã nào tăng trưởng mạnh nhất?'] },
+        { allowEmptyQuestions: false }
+      );
+      expect(ctx.analysis_questions.length).toBe(1);
+      expect(ctx.analysis_questions[0]).toBe('Mã nào tăng trưởng mạnh nhất?');
+    });
+
+    it('(6) phiên cũ có analysis_questions trong bối cảnh kinh doanh → mở lại không lỗi và không mất dữ liệu', () => {
+      const s = createSession('Biz Test 6');
+      setBusinessContext(
+        s.id,
+        {
+          company_name: 'Old Business',
+          extra_info: 'Mô tả ban đầu',
+          analysis_questions: ['Doanh thu theo kênh nào cao nhất?'],
+        },
+        { allowEmptyQuestions: true }
+      );
+
+      // Mở lại phiên: không lỗi, dữ liệu còn nguyên vẹn
+      const reopened = getSession(s.id);
+      expect(reopened.business_context?.analysis_questions.length).toBe(1);
+      expect(reopened.business_context?.analysis_questions[0]).toBe('Doanh thu theo kênh nào cao nhất?');
+      expect(reopened.business_context?.company_name).toBe('Old Business');
+      expect(reopened.business_context?.extra_info).toBe('Mô tả ban đầu');
+
+      // Khi lưu lại từ UploadPage (không có ô câu hỏi trong form), analysis_questions vẫn được bảo toàn
+      const updated = setBusinessContext(
+        s.id,
+        {
+          company_name: 'Old Business',
+          extra_info: 'Cập nhật thêm mô tả hoạt động',
+          analysis_questions: [],
+        },
+        { allowEmptyQuestions: true }
+      );
+      expect(updated.analysis_questions.length).toBe(1);
+      expect(updated.analysis_questions[0]).toBe('Doanh thu theo kênh nào cao nhất?');
+      expect(updated.extra_info).toBe('Cập nhật thêm mô tả hoạt động');
+      expect(updated.company_name).toBe('Old Business');
+    });
+  });
 });
 

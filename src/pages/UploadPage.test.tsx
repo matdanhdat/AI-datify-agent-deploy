@@ -273,4 +273,54 @@ describe('UploadPage Component', () => {
     expect(screen.getByText('Kinh doanh .csv')).toBeDefined();
     expect(screen.getByText('Kinh doanh .xlsx')).toBeDefined();
   });
+
+  describe('Prompt FIX-CONTEXT: UploadPage Context Tests (7) & (8)', () => {
+    it('(7) toast: business không phát toast lỗi khi lưu', () => {
+      const s = createSession('Business Toast Session');
+      sessionStore.setActiveSessionId(s.id);
+
+      render(
+        <BrowserRouter>
+          <UploadPage />
+        </BrowserRouter>
+      );
+
+      const extraInput = screen.getByPlaceholderText(/Ví dụ: Cửa hàng thời trang có ba kênh bán/i);
+      fireEvent.change(extraInput, { target: { value: 'Mô hình kinh doanh bán lẻ thời trang với chuỗi 3 cửa hàng.' } });
+      fireEvent.blur(extraInput);
+
+      expect(screen.queryByText('Lỗi lưu bối cảnh')).toBeNull();
+      expect(screen.queryByText(/Bạn cần nhập ít nhất một yêu cầu phân tích/)).toBeNull();
+    });
+
+    it('(8) khung xanh chỉ hiện khi lưu thành công', () => {
+      const s = createSession('Business Confirm Box Session');
+      sessionStore.setActiveSessionId(s.id);
+
+      render(
+        <BrowserRouter>
+          <UploadPage />
+        </BrowserRouter>
+      );
+
+      const extraInput = screen.getByPlaceholderText(/Ví dụ: Cửa hàng thời trang có ba kênh bán/i);
+
+      // 1. Khi đoạn văn ngắn (< 40 ký tự), khung xanh không hiển thị
+      fireEvent.change(extraInput, { target: { value: 'Quá ngắn' } });
+      expect(screen.queryByTestId('extra-info-confirm')).toBeNull();
+
+      // 2. Khi >= 40 ký tự và blur (lưu thành công), khung xanh xuất hiện
+      fireEvent.change(extraInput, { target: { value: 'Cửa hàng thời trang có ba kênh bán: cửa hàng, website, sàn TMĐT.' } });
+      fireEvent.blur(extraInput);
+      expect(screen.getByTestId('extra-info-confirm')).toBeDefined();
+      expect(screen.getByText('Thông tin này được lưu cùng phiên làm việc.')).toBeDefined();
+
+      // 3. Khi > 2000 ký tự, hiển thị thông báo giới hạn ký tự và khung xanh không hiển thị
+      fireEvent.change(extraInput, { target: { value: 'a'.repeat(2001) } });
+      fireEvent.blur(extraInput);
+      expect(screen.queryByTestId('extra-info-confirm')).toBeNull();
+      expect(screen.getByText('Thông tin bổ sung tối đa 2.000 ký tự.')).toBeDefined();
+      expect(screen.queryByText(/Bạn cần nhập ít nhất một yêu cầu phân tích/)).toBeNull();
+    });
+  });
 });

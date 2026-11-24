@@ -1,7 +1,7 @@
 # BỘ BẰNG CHỨNG HỆ THỐNG VÀ KIỂM CHỨNG TOÀN DIỆN (BANG_CHUNG.md)
 
 > **Tài liệu sinh tự động:** `scripts/evidence_report.mjs`
-> **Thời điểm xuất bản:** 2026-11-24T07:08:25.637Z
+> **Thời điểm xuất bản:** 2026-11-24T12:52:11.434Z
 > **Cam kết:** Toàn bộ dữ liệu dưới đây được chạy từ mã nguồn thật, số liệu thật, không sửa tay.
 
 ---
@@ -298,20 +298,20 @@ Bạn là bộ phận lập kế hoạch định lượng cho Pixel Trading Agen
 
 ### 6. Thống kê kích thước Bundle & Phân mảnh tài nguyên (dist/)
 
-- **Tổng dung lượng thư mục dist/:** `7020.9 KB` (113 tệp)
+- **Tổng dung lượng thư mục dist/:** `7022.4 KB` (113 tệp)
 - **Ngân sách tối đa cho phép:** `25.0 MB` (Thực tế đạt: **6.86 MB** - Đạt chuẩn 100%)
 
 | Phân mảnh tệp (Chunk Name) | Dung lượng thô (Raw) | Dung lượng Gzip | Phân loại |
 |---|:---:|:---:|:---:|
-| `assets\BusinessInsightsPanel-GxQEZmTy.js` | 1179.9 KB | **382.3 KB** | Core App Bundle |
+| `assets\BusinessInsightsPanel-DDszvYB4.js` | 1179.9 KB | **382.3 KB** | Core App Bundle |
 | `assets\validate.worker-Dnez07QO.js` | 997.3 KB | **291.0 KB** | Web Worker |
 | `assets\excel-engine-B5U9YJAX.js` | 917.3 KB | **264.7 KB** | Core App Bundle |
-| `assets\index-D50GBK7w.js` | 312.6 KB | **96.4 KB** | Core App Bundle |
+| `assets\index-CpdYVrxL.js` | 313.0 KB | **96.5 KB** | Core App Bundle |
 | `assets\analysis.worker-2kXURpuO.js` | 110.0 KB | **29.0 KB** | Web Worker |
-| `assets\ReportPage-BRZmPXuH.js` | 89.0 KB | **25.2 KB** | Core App Bundle |
-| `assets\AnalyzePage-DZFvX6fs.js` | 81.9 KB | **22.3 KB** | Core App Bundle |
-| `assets\CleanPage-Cfh3MXSu.js` | 74.6 KB | **20.4 KB** | Core App Bundle |
-| `assets\businessComputeSelected-XHb7dK7x.js` | 70.1 KB | **18.2 KB** | Core App Bundle |
+| `assets\ReportPage-B_DlaYqJ.js` | 89.0 KB | **25.2 KB** | Core App Bundle |
+| `assets\AnalyzePage-BpYmzQ9x.js` | 81.9 KB | **22.3 KB** | Core App Bundle |
+| `assets\CleanPage-CDoLrkWw.js` | 74.6 KB | **20.4 KB** | Core App Bundle |
+| `assets\businessComputeSelected-C1RnwRG9.js` | 70.1 KB | **18.2 KB** | Core App Bundle |
 | `assets\businessCleaner-BXKLIhUe.js` | 66.2 KB | **19.7 KB** | Core App Bundle |
 
 
@@ -323,7 +323,7 @@ Bạn là bộ phận lập kế hoạch định lượng cho Pixel Trading Agen
 
 | Tác vụ kiểm thử hiệu năng | Quy mô dữ liệu | Thời gian thực thi | Ngưỡng cho phép | Đánh giá |
 |---|---|:---:|:---:|:---:|
-| **Tính toán 17 chỉ số x 10 mã cổ phiếu** | 50.000 dòng dữ liệu | **3.3 ms** | < 500 ms | ✓ Xuất sắc |
+| **Tính toán 17 chỉ số x 10 mã cổ phiếu** | 50.000 dòng dữ liệu | **3.5 ms** | < 500 ms | ✓ Xuất sắc |
 | **Thẩm định tệp CSV/Excel (Validator)** | 50.000 dòng dữ liệu | **142 ms** | < 1.000 ms | ✓ Đạt chuẩn Web Worker |
 | **Lập hồ sơ & Phát hiện bất thường MAD** | 50.000 dòng dữ liệu | **88 ms** | < 500 ms | ✓ Đạt chuẩn Web Worker |
 | **Thực thi phân tích riêng (Custom Workflow)** | 3 bước tính toán | **18 ms** | < 200 ms | ✓ Phản hồi tức thì |

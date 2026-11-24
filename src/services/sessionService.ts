@@ -166,19 +166,40 @@ export function dispatch(
  * Sets or updates the business context & analysis requirements for a session (Prompt D3).
  * Sanitizes input, enforces invariants, writes audit log, and preserves atomic state.
  */
-export function setBusinessContext(sessionId: string, input: unknown): BusinessContext {
+export function setBusinessContext(
+  sessionId: string,
+  input: unknown,
+  options?: { allowEmptyQuestions?: boolean }
+): BusinessContext {
   const record = sessionStore.getRecord(sessionId);
   if (!record) {
     throw new AppError(ERROR_CODES.NOT_FOUND, `Không tìm thấy phiên làm việc [${sessionId}]`);
   }
 
-  const normalized = normalizeContext(input);
+  const isTrading = record.meta.dataset?.kind === 'trading';
+  const allowEmptyQuestions = options?.allowEmptyQuestions ?? !isTrading;
+
+  const oldCtx = record.meta.business_context as BusinessContext | undefined;
+  let finalInput = input;
+  if (
+    typeof input === 'object' &&
+    input !== null &&
+    (input as Record<string, unknown>).analysis_questions === undefined &&
+    oldCtx?.analysis_questions &&
+    oldCtx.analysis_questions.length > 0
+  ) {
+    finalInput = {
+      ...(input as Record<string, unknown>),
+      analysis_questions: oldCtx.analysis_questions,
+    };
+  }
+
+  const normalized = normalizeContext(finalInput, { allowEmptyQuestions });
   if (!normalized.ok || !normalized.data || !normalized.hash) {
     throw new AppError(ERROR_CODES.VALIDATION, normalized.error || 'Dữ liệu bối cảnh không hợp lệ.');
   }
 
   const isFirstTime = !record.meta.business_context;
-  const oldCtx = record.meta.business_context as BusinessContext | undefined;
 
   const changedFields: string[] = [];
   if (!oldCtx) {
@@ -373,6 +394,6 @@ export async function getAppConfig(): Promise<AppConfig> {
 export const devForceEvent =
   import.meta.env.DEV || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test')
     ? (id: string, event: string, actor: AuditActor = 'user', detail: string = 'Dev force event'): Session => {
-        return dispatch(id, event, actor, detail);
-      }
+      return dispatch(id, event, actor, detail);
+    }
     : undefined;
